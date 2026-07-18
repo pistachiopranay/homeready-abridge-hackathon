@@ -82,4 +82,19 @@ SCAN EVENTS (newest last):
 {events}
 
 MEASUREMENTS SO FAR:
-{measurements}"""
+{measurements}
+
+PENDING CONFIRMATIONS (the iPad screen is showing these as tappable cards; weave the
+newest one into your next reply naturally as a yes/no question if you haven't asked yet):
+{confirmations}"""
+
+
+CONFIRM_CLASSIFIER = """The caregiver was shown these pending yes/no confirmations \
+during a home walkthrough:
+{pending}
+
+The caregiver just said: "{utterance}"
+
+For each confirmation the utterance clearly answers, output its id and the answer. \
+If the utterance doesn't address a confirmation, leave it out. Return ONLY JSON:
+{{"resolved": [{{"id": "<id>", "answer": true|false}}]}}"""

@@ -23,6 +23,7 @@ class Run:
         self.findings: list[dict] = []     # deep-pass STEADI findings
         self.measurements: list[dict] = [] # roomplan geometry facts
         self.conversation: list[dict] = [] # {role, text} voice transcript
+        self.confirmations: list[dict] = []  # {id, question, status, source, resolved_by}
         self.current_room: str = "unknown"
 
     def add_frame(self, jpeg: bytes, room: str | None) -> dict:
@@ -53,6 +54,31 @@ class Run:
         with self.lock:
             self.conversation.append({"role": role, "text": text})
 
+    def add_confirmation(self, question: str, source: str) -> dict:
+        with self.lock:
+            # Don't stack near-duplicate questions
+            for c in self.confirmations:
+                if c["status"] == "pending" and c["question"] == question:
+                    return c
+            item = {"id": uuid.uuid4().hex[:8], "question": question,
+                    "status": "pending", "source": source,
+                    "resolved_by": None, "ts": time.time()}
+            self.confirmations.append(item)
+            return item
+
+    def resolve_confirmation(self, cid: str, answer: bool, by: str) -> dict | None:
+        with self.lock:
+            for c in self.confirmations:
+                if c["id"] == cid and c["status"] == "pending":
+                    c["status"] = "confirmed" if answer else "denied"
+                    c["resolved_by"] = by
+                    return c
+        return None
+
+    def pending_confirmations(self) -> list[dict]:
+        with self.lock:
+            return [dict(c) for c in self.confirmations if c["status"] == "pending"]
+
     def pending_deep_frames(self) -> list[dict]:
         with self.lock:
             return [f for f in self.frames if not f["deep_done"]]
@@ -76,6 +102,7 @@ class Run:
                 "findings": self.findings,
                 "measurements": self.measurements,
                 "conversation": self.conversation,
+                "confirmations": self.confirmations,
                 "events": list(self.events),
                 "frames": [{k: v for k, v in f.items()} for f in self.frames],
             }, indent=2))
@@ -116,5 +143,6 @@ def load_run(run_id: str) -> Run | None:
     run.findings = data.get("findings", [])
     run.measurements = data.get("measurements", [])
     run.conversation = data.get("conversation", [])
+    run.confirmations = data.get("confirmations", [])
     run.current_room = "unknown"
     return run

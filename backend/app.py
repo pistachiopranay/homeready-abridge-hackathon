@@ -53,9 +53,20 @@ async def frame(req: Request):
 
     # Off the event loop — a blocking 1.5s call here would stall the brain's SSE stream
     callout = await asyncio.to_thread(fast_pass, jpeg, list(run.events))
+    if callout and _is_repeat(callout, list(run.events)):
+        callout = None  # Haiku rewords the same hazard; drop near-duplicates
     if callout:
         run.add_event(callout)
     return {"frame_index": meta["index"], "callout": callout}
+
+
+def _is_repeat(callout: str, events: list[str], threshold: float = 0.5) -> bool:
+    words = set(callout.lower().split())
+    for e in events:
+        ew = set(e.lower().split())
+        if words and len(words & ew) / len(words | ew) > threshold:
+            return True
+    return False
 
 
 @app.post("/roomplan")
@@ -63,18 +74,49 @@ async def roomplan(req: Request):
     body = await req.json()
     run = state.current()
     measurements = ingest_roomplan(body)
+    room = body.get("room", "room")
     for m in measurements:
         run.add_measurement(m)
         if m.get("kind") in ("door", "opening"):
             run.add_event(f"Measured: {m['label']} is {m['text']}")
+            article = "the main doorway" if room == "entry" else f"the {room} {m['kind']}"
+            run.add_confirmation(
+                f"I measured a {m['kind']} at {m['width_in']}in — is this {article} "
+                f"Monica uses?", source="lidar")
     return {"added": len(measurements), "measurements": measurements}
 
 
 @app.post("/event")
 async def event(req: Request):
     body = await req.json()
-    state.current().add_event(str(body.get("text", "")))
+    run = state.current()
+    text = str(body.get("text", ""))
+    run.add_event(text)
+    # Room-start events double as a room-identity confirmation on the overlay
+    room = body.get("room")
+    if room:
+        label = "Monica's front door / entry area" if room == "entry" else f"the {room}"
+        run.add_confirmation(f"Just to check — is this {label}?", source="room")
     return {"ok": True}
+
+
+@app.get("/confirmations")
+def confirmations():
+    run = state.current()
+    with run.lock:
+        return {"confirmations": [dict(c) for c in run.confirmations]}
+
+
+@app.post("/confirmations/{cid}/resolve")
+async def resolve_confirmation(cid: str, req: Request):
+    body = await req.json()
+    run = state.current()
+    item = run.resolve_confirmation(cid, bool(body.get("answer")),
+                                    by=body.get("by", "tap"))
+    if item:
+        verdict = "confirmed" if item["status"] == "confirmed" else "said no to"
+        run.add_event(f"Caregiver {verdict}: {item['question']}")
+    return {"resolved": item is not None, "confirmation": item}
 
 
 @app.post("/walkthrough/finish")

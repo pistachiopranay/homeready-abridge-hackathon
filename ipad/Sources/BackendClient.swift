@@ -37,7 +37,25 @@ final class BackendClient {
 
     func send(roomPlan: [String: Any]) { post("roomplan", json: roomPlan) }
 
-    func send(event text: String) { post("event", json: ["text": text]) }
+    func send(event text: String, room: String? = nil) {
+        var body: [String: Any] = ["text": text]
+        if let room { body["room"] = room }
+        post("event", json: body)
+    }
+
+    func fetchConfirmations(completion: @escaping ([[String: Any]]) -> Void) {
+        let url = baseURL.appendingPathComponent("confirmations")
+        session.dataTask(with: url) { data, _, _ in
+            let items = data
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                .flatMap { $0["confirmations"] as? [[String: Any]] } ?? []
+            DispatchQueue.main.async { completion(items) }
+        }.resume()
+    }
+
+    func resolveConfirmation(id: String, answer: Bool) {
+        post("confirmations/\(id)/resolve", json: ["answer": answer, "by": "tap"])
+    }
 
     func finishWalkthrough(completion: @escaping (String?) -> Void) {
         post("walkthrough/finish", json: [:]) { obj in

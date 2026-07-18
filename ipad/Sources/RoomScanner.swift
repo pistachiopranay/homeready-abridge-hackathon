@@ -32,7 +32,8 @@ final class RoomScanner: NSObject, ObservableObject, RoomCaptureViewDelegate {
         let config = RoomCaptureSession.Configuration()
         captureView.captureSession.run(configuration: config)
         isScanning = true
-        BackendClient.shared.send(event: "Caregiver started scanning the \(room).")
+        BackendClient.shared.send(event: "Caregiver started scanning the \(room).",
+                                  room: room)
         frameTimer = Timer.scheduledTimer(withTimeInterval: frameInterval,
                                           repeats: true) { [weak self] _ in
             self?.captureAndUploadFrame()

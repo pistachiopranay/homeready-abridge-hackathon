@@ -80,6 +80,12 @@ struct ContentView: View {
             RoomCaptureViewRep()
                 .ignoresSafeArea()
 
+            VStack {
+                ConfirmationOverlay()
+                    .padding(.top, 14)
+                Spacer()
+            }
+
             VStack(spacing: 12) {
                 if !voice.lastAgentLine.isEmpty {
                     Text(voice.lastAgentLine)

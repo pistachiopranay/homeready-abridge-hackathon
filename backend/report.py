@@ -88,6 +88,16 @@ def render_report(run: Run) -> str:
         measures += f'<div class="{cls}"><b>{html.escape(m.get("label", ""))}</b>: ' \
                     f'{html.escape(m.get("text", ""))}</div>\n'
 
+    confirms = ""
+    for c in getattr(run, "confirmations", []):
+        if c["status"] == "pending":
+            continue
+        mark, color = ("✓", "#1e8449") if c["status"] == "confirmed" else ("✗", "#c0392b")
+        confirms += (f'<div class="measure" style="border-left:5px solid {color}">'
+                     f'<b style="color:{color}">{mark} caregiver '
+                     f'{c["status"]} ({c["resolved_by"]})</b> — '
+                     f'{html.escape(c["question"])}</div>\n')
+
     qa = ""
     for turn in run.conversation:
         who = "Agent" if turn["role"] == "agent" else "Caregiver"
@@ -130,6 +140,7 @@ def render_report(run: Run) -> str:
 {measures or '<p class="meta">No room scans captured.</p>'}
 
 <h2>3 · Patient-reported context (voice walkthrough)</h2>
+{confirms}
 <div class="qa">{qa or '<p class="meta">No conversation captured.</p>'}</div>
 
 <h2>4 · Drafted actions — not sent, clinician review required</h2>
