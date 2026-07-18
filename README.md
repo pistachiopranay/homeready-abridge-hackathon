@@ -1,5 +1,7 @@
 # HomeReady — verify the home before discharge
 
+![HomeReady — Monica Hilpert, 76 — her chart cannot answer one question: is her home ready for her?](docs/intro.jpg)
+
 > *Monica's clinical team believes she may be ready to go home. HomeReady answers
 > the question her chart cannot: **is her home ready for her?***
 
@@ -33,6 +35,8 @@ into the chart before the patient leaves.
    encounter note against walkthrough evidence. The killer finding is a
    measurement, not a vibe: **"The bathroom doorway is 27.6 in. Monica's walker
    is 28. The discharge plan as written will not work."**
+
+   ![LiDAR measurement: doorway 27.6in vs walker 28.0in — the discharge plan physically cannot work](docs/doorway.jpg)
 5. **Care-team review** — a split-view station: drafted actions (clinical /
    operational / DME, each with owner + deadline + evidence) awaiting clinician
    approval, floor plans with the failing door drawn in red, the photo evidence
@@ -104,3 +108,5 @@ STEADI / HSSAT · Abridge `synthetic-ambient-fhir-25` dataset.
 
 Synthetic data only — not a medical device. All patient data in this repo and
 demo is fully synthetic (Synthea).
+
+![HomeReady — verify the home before discharge](docs/end.jpg)
