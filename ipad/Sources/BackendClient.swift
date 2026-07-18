@@ -57,6 +57,10 @@ final class BackendClient {
         post("confirmations/\(id)/resolve", json: ["answer": answer, "by": "tap"])
     }
 
+    func startDemo() { post("demo/start", json: [:]) }
+    func stopDemo() { post("demo/stop", json: [:]) }
+    var demoVideoURL: URL { baseURL.appendingPathComponent("demo/video") }
+
     func fetchState(completion: @escaping ([String: Any]) -> Void) {
         let url = baseURL.appendingPathComponent("state")
         session.dataTask(with: url) { data, _, _ in

@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 
 @main
@@ -15,9 +16,18 @@ struct ContentView: View {
 
     @State private var backendHost = "10.1.63.110:8000"
     @State private var walking = false
+    @State private var demoMode = false
+    @State private var demoPlayer: AVPlayer?
     @State private var room = "entry"
     @State private var reportURL: String?
     @State private var finishing = false
+
+    private func applyHost() {
+        let raw = backendHost.contains("://") ? backendHost : "http://\(backendHost)"
+        if let url = URL(string: raw) {
+            BackendClient.shared.baseURL = url
+        }
+    }
 
     var body: some View {
         if walking {
@@ -55,11 +65,9 @@ struct ContentView: View {
             .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
 
             Button {
-                let raw = backendHost.contains("://") ? backendHost : "http://\(backendHost)"
-                if let url = URL(string: raw) {
-                    BackendClient.shared.baseURL = url
-                }
+                applyHost()
                 BackendClient.shared.startWalkthrough()
+                demoMode = false
                 walking = true
                 reportURL = nil
                 Task { await voice.start() }
@@ -71,6 +79,25 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.teal)
+
+            Button {
+                applyHost()
+                BackendClient.shared.startDemo()
+                demoMode = true
+                walking = true
+                reportURL = nil
+                let player = AVPlayer(url: BackendClient.shared.demoVideoURL)
+                player.isMuted = true
+                demoPlayer = player
+                player.play()
+                Task { await voice.start() }
+            } label: {
+                Label("Demo mode — replay recorded walkthrough",
+                      systemImage: "play.rectangle")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .tint(.secondary)
 
             if let reportURL {
                 VStack(spacing: 6) {
@@ -106,8 +133,14 @@ struct ContentView: View {
 
     private var walkthroughView: some View {
         ZStack(alignment: .bottom) {
-            RoomCaptureViewRep()
-                .ignoresSafeArea()
+            if demoMode, let demoPlayer {
+                VideoPlayer(player: demoPlayer)
+                    .disabled(true)
+                    .ignoresSafeArea()
+            } else {
+                RoomCaptureViewRep()
+                    .ignoresSafeArea()
+            }
 
             VStack {
                 ConfirmationOverlay()
@@ -141,14 +174,16 @@ struct ContentView: View {
                 }
 
                 HStack(spacing: 10) {
-                    Picker("Room", selection: $room) {
-                        ForEach(ROOMS, id: \.self) { Text($0.capitalized) }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: room) { newRoom in
-                        scanner.finishRoom()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            scanner.startRoom(named: newRoom)
+                    if !demoMode {
+                        Picker("Room", selection: $room) {
+                            ForEach(ROOMS, id: \.self) { Text($0.capitalized) }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: room) { newRoom in
+                            scanner.finishRoom()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                scanner.startRoom(named: newRoom)
+                            }
                         }
                     }
 
@@ -179,7 +214,13 @@ struct ContentView: View {
 
     private func endWalkthrough() {
         finishing = true
-        scanner.finishRoom()
+        if demoMode {
+            BackendClient.shared.stopDemo()
+            demoPlayer?.pause()
+            demoPlayer = nil
+        } else {
+            scanner.finishRoom()
+        }
         Task { await voice.stop() }
         // Give the room-scan result a moment to post before the finish drain
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {

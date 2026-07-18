@@ -33,6 +33,16 @@ def _img_block(jpeg: bytes) -> dict:
                                         "data": base64.standard_b64encode(jpeg).decode()}}
 
 
+def is_repeat(callout: str, events: list[str], threshold: float = 0.5) -> bool:
+    """Haiku rewords the same hazard across frames; word-overlap dedupe."""
+    words = set(callout.lower().split())
+    for e in events:
+        ew = set(e.lower().split())
+        if words and len(words & ew) / len(words | ew) > threshold:
+            return True
+    return False
+
+
 def fast_pass(jpeg: bytes, recent_events: list[str]) -> str | None:
     """One-liner hazard callout, or None if nothing new. Called per uploaded frame."""
     system = FAST_PASS_SYSTEM.format(

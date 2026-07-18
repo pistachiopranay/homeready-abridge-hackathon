@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import state
 from brain import stream_completion
 from geometry import ingest_roomplan
-from vision import DeepPassWorker, fast_pass
+from vision import DeepPassWorker, fast_pass, is_repeat
 
 app = FastAPI(title="walkthrough-backend")
 
@@ -53,20 +53,11 @@ async def frame(req: Request):
 
     # Off the event loop — a blocking 1.5s call here would stall the brain's SSE stream
     callout = await asyncio.to_thread(fast_pass, jpeg, list(run.events))
-    if callout and _is_repeat(callout, list(run.events)):
-        callout = None  # Haiku rewords the same hazard; drop near-duplicates
+    if callout and is_repeat(callout, list(run.events)):
+        callout = None  # near-duplicate of a recent callout
     if callout:
         run.add_event(callout)
     return {"frame_index": meta["index"], "callout": callout}
-
-
-def _is_repeat(callout: str, events: list[str], threshold: float = 0.5) -> bool:
-    words = set(callout.lower().split())
-    for e in events:
-        ew = set(e.lower().split())
-        if words and len(words & ew) / len(words | ew) > threshold:
-            return True
-    return False
 
 
 @app.post("/roomplan")
@@ -171,6 +162,39 @@ def report_fhir(run: str | None = None):
     if r is None:
         return JSONResponse({"error": "run not found"}, status_code=404)
     return draft_bundle(r)
+
+
+@app.post("/demo/start")
+def demo_start():
+    from demo import VIDEO, player
+    if not VIDEO.exists():
+        return JSONResponse({"error": "no demo assets — run prepare_demo.py"},
+                            status_code=404)
+    started = player.start()
+    return {"started": started, "already_running": not started}
+
+
+@app.post("/demo/stop")
+def demo_stop():
+    from demo import player
+    player.halt()
+    return {"ok": True}
+
+
+@app.get("/demo/video")
+def demo_video():
+    from fastapi.responses import FileResponse
+    from demo import VIDEO
+    if not VIDEO.exists():
+        return JSONResponse({"error": "no demo video"}, status_code=404)
+    return FileResponse(VIDEO, media_type="video/mp4")
+
+
+@app.get("/demo/status")
+def demo_status():
+    from demo import player
+    return {"running": player.running, "frame": player.frame_i,
+            "total": player.total}
 
 
 @app.get("/healthz")
