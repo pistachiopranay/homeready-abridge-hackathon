@@ -54,7 +54,7 @@ struct PatientChrome<Content: View>: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: "house.fill")
-                Text("Relay Home").font(.headline.bold())
+                Text("HomeReady").font(.headline.bold())
                 Text("·").opacity(0.6)
                 Text(subtitle).font(.subheadline)
                 Spacer()
@@ -194,7 +194,7 @@ struct ClinicianPortalView: View {
                 .opacity(disabled ? 0.5 : 1)
             }
             Spacer()
-            Text("Ambient notes by Abridge\nFollow-through by Relay")
+            Text("Ambient notes by Abridge\nHome verification by HomeReady")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding()
@@ -284,7 +284,7 @@ struct ClinicianPortalView: View {
         HStack(spacing: 12) {
             ProgressView()
             VStack(alignment: .leading, spacing: 3) {
-                Text("Relay · walk-through in progress")
+                Text("HomeReady · walk-through in progress")
                     .font(.headline)
                     .foregroundStyle(.orange)
                 Text("Report is being generated — findings land as they're graded. "
@@ -309,9 +309,9 @@ struct ClinicianPortalView: View {
         let nCritical = rs["n_critical"] as? Int ?? 0
 
         let title: String = cleared
-            ? "Relay · Home readiness — VERIFIED, cleared for discharge"
-            : (blocked > 0 ? "Relay · Home readiness — plan BLOCKED by the home"
-                           : "Relay · Home readiness — assessment on file")
+            ? "HomeReady — VERIFIED, cleared for discharge"
+            : (blocked > 0 ? "HomeReady — discharge plan BLOCKED by the home"
+                           : "HomeReady — assessment on file")
         let icon: String = cleared ? "checkmark.seal.fill"
             : (blocked > 0 ? "exclamationmark.octagon.fill" : "house.and.flag")
         let color: Color = cleared ? RelayTheme.green : (blocked > 0 ? RelayTheme.red : RelayTheme.blueDeep)
@@ -352,8 +352,9 @@ struct ClinicianPortalView: View {
             Label("Pre-discharge — home setup needed", systemImage: "house.badge.clock")
                 .font(.headline)
                 .foregroundStyle(.orange)
-            Text("The plan requires a formal pre-discharge assessment of home setup. "
-                 + "That can't be verified from this chair.")
+            Text("Monica's clinical team believes she may be ready to go home. "
+                 + "HomeReady answers the question her chart cannot: "
+                 + "is her home ready for her?")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -361,8 +362,8 @@ struct ClinicianPortalView: View {
                 handedOff = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { onHandoff() }
             } label: {
-                Label(handedOff ? "Relay accepted — notifying Monica…"
-                                : "Hand over to Relay",
+                Label(handedOff ? "HomeReady accepted — notifying Monica…"
+                                : "Hand over to HomeReady",
                       systemImage: handedOff ? "checkmark.circle.fill"
                                              : "arrow.right.circle.fill")
                     .font(.headline)
@@ -575,7 +576,7 @@ struct CareTeamView: View {
                 Text("Care-team review")
                     .font(.title3.bold())
                     .foregroundStyle(RelayTheme.ink)
-                Text("walk-through \(runId ?? "…") · drafted by Relay, decided by clinicians")
+                Text("walk-through \(runId ?? "…") · drafted by HomeReady, decided by clinicians")
                     .font(.caption)
                     .foregroundStyle(RelayTheme.inkSecondary)
             }
@@ -640,7 +641,7 @@ struct CareTeamView: View {
                 }
 
                 if !approvals.isEmpty {
-                    sectionCaption("Actions drafted by Relay")
+                    sectionCaption("Actions drafted by HomeReady")
                 }
                 ForEach(approvals) { a in
                     approvalCard(a)
@@ -844,7 +845,7 @@ struct DischargedView: View {
             Text("Monica is cleared to go home Friday.")
                 .font(.title2.bold())
                 .foregroundStyle(RelayTheme.blueDeep)
-            Text("Abridge captures the encounter. Relay carries the care forward.")
+            Text("Abridge captures the encounter. HomeReady verifies the home.")
                 .font(.footnote.italic())
                 .foregroundStyle(.secondary)
                 .padding(.top, 6)

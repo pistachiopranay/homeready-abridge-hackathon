@@ -125,7 +125,7 @@ def escalation_tasks(escalations: list[dict], patient_ref: dict) -> list[dict]:
             "status": "requested",
             "intent": "proposal",
             "priority": priority.get(e["level"], "routine"),
-            "code": {"text": f"Relay escalation — {e['level']} exception"},
+            "code": {"text": f"HomeReady escalation — {e['level']} exception"},
             "description": f"{e['expected']} | OBSERVED: {e['observed']} | "
                            f"NEXT: {e['next_action']}",
             "for": patient_ref,

@@ -103,9 +103,9 @@ struct ContentView: View {
             Image(systemName: "house.and.flag.fill")
                 .font(.system(size: 54))
                 .foregroundStyle(RelayTheme.brand)
-            Text("Relay")
+            Text("HomeReady")
                 .font(.system(size: 46, weight: .bold, design: .rounded))
-            Text("Care doesn't end at the encounter.")
+            Text("Verify the home before discharge.")
                 .font(.title3)
                 .foregroundStyle(.secondary)
 
@@ -204,7 +204,7 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "house.fill")
-                    Text("Relay Home · walk-through with Riley")
+                    Text("HomeReady · walk-through with Riley")
                         .font(.footnote.bold())
                     Spacer()
                 }

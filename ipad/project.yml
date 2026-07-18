@@ -15,7 +15,8 @@ targets:
       path: Sources/Info.plist
       properties:
         UILaunchScreen: {}
-        CFBundleDisplayName: Relay
+        CFBundleDisplayName: HomeReady
+        UIUserInterfaceStyle: Light
         NSMicrophoneUsageDescription: Voice conversation with the walkthrough guide.
         NSCameraUsageDescription: Room scanning and hazard detection during the walkthrough.
         NSAppTransportSecurity:

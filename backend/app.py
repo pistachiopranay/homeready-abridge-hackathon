@@ -335,13 +335,13 @@ def index():
                  f"<td>{len(findings)} ({n_crit} critical)</td>"
                  f"<td>{len(data.get('escalations', []))}</td><td>{badge}</td></tr>")
     live = state.current()
-    return f"""<!doctype html><html><head><meta charset="utf-8"><title>Relay — runs</title>
+    return f"""<!doctype html><html><head><meta charset="utf-8"><title>HomeReady — runs</title>
 <style>body{{font-family:-apple-system,sans-serif;max-width:760px;margin:40px auto;color:#1c2833}}
 h1{{font-size:22px}} table{{width:100%;border-collapse:collapse}}
 td,th{{padding:8px 12px;border-bottom:1px solid #eaeded;font-size:14px;text-align:left}}
 a{{color:#2874a6}} .live{{background:#eafaf1;padding:10px 14px;border-radius:8px}}</style>
 </head><body>
-<h1>Relay · walkthrough runs</h1>
+<h1>HomeReady · walkthrough runs</h1>
 <p class="live">Live session: <b>{live.id}</b> — {len(live.frames)} frames,
 {len(live.findings)} findings so far · <a href="/report">view live report</a></p>
 <table><tr><th>run</th><th>frames</th><th>findings</th><th>escalations</th><th></th></tr>

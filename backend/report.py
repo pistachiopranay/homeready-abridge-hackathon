@@ -188,12 +188,12 @@ def render_report(run: Run, embed: bool = False) -> str:
                     if ob.get("status") == "blocked")
 
     return f"""<!doctype html><html><head><meta charset="utf-8">
-<title>Relay — Home-Readiness Report — {pt['name']}</title><style>{CSS}</style></head>
+<title>HomeReady — Report — {pt['name']}</title><style>{CSS}</style></head>
 <body class="{'embed' if embed else ''}">
 <div class="wrap">
 <header>
-  <h1>Relay<span class="dot">.</span> Home-Readiness Report</h1>
-  <div class="sub">Care does not end at the encounter — agent-conducted, STEADI-aligned
+  <h1>HomeReady<span class="dot">.</span> Home-Readiness Report</h1>
+  <div class="sub">Verify the home before discharge — agent-conducted, STEADI-aligned
   · run {run.id}</div>
   <div class="banner">
     <div><b>Patient</b>{pt['name']}, {pt['age']}{pt['sex']}</div>
@@ -205,7 +205,7 @@ def render_report(run: Run, embed: bool = False) -> str:
 </header>
 
 <h2>1 · Care-plan obligations — derived from the encounter documentation</h2>
-<p class="meta">Relay read the SNF note + after-visit summary (Abridge-style artifacts)
+<p class="meta">HomeReady read the SNF note + after-visit summary (Abridge-style artifacts)
 and derived what must be true at home for this plan to work, then scored each against
 walkthrough evidence.</p>
 {obligations_html or '<p class="meta">Obligation scoring runs when the walkthrough finishes.</p>'}
@@ -232,7 +232,7 @@ walkthrough evidence.</p>
 <p class="meta">{len(bundle['entry'])} draft resources (Observations, ServiceRequests,
 escalation Tasks) — <a href="/report/fhir?run={run.id}">view JSON bundle</a></p>
 
-<div class="footer"><b>Abridge captures the encounter. Relay carries the care forward.</b><br>
+<div class="footer"><b>Abridge captures the encounter. HomeReady verifies the home.</b><br>
 detection: Claude vision · grading: CDC STEADI / HSSAT · measurements: LiDAR ·
 all orders and escalations are drafts pending clinician review ·
 synthetic patient (Synthea) — demo only</div>
