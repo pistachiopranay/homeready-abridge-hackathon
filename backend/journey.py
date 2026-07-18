@@ -33,7 +33,7 @@ PLAN_ITEMS = [
 
 def patient_chart() -> dict:
     rec = record()
-    return {
+    chart = {
         "name": "Monica Hilpert",
         "age": 76,
         "sex": "F",
@@ -43,6 +43,22 @@ def patient_chart() -> dict:
         "plan_items": PLAN_ITEMS,
         "handoff_message": HANDOFF_MESSAGE,
     }
+    # The chart round-trip: once a walkthrough exists, its outcome is part of
+    # the longitudinal record the clinician sees
+    run = latest_finished_run()
+    if run is not None:
+        hazards = [f for f in run.findings if f.get("hazard")]
+        chart["relay_status"] = {
+            "run_id": run.id,
+            "discharge_state": run.discharge_state,
+            "n_findings": len(hazards),
+            "n_critical": sum(1 for f in hazards
+                              if f.get("severity") == "critical"),
+            "n_blocked": sum(1 for o in run.obligations
+                             if o.get("status") == "blocked"),
+            "has_floorplan": bool(run.floorplans),
+        }
+    return chart
 
 
 def latest_finished_run() -> Run | None:

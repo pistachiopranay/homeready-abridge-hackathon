@@ -67,7 +67,8 @@ struct ContentView: View {
             case .home:
                 startView
             case .portal:
-                ClinicianPortalView { stage = .patientMessage }
+                ClinicianPortalView(onHandoff: { stage = .patientMessage },
+                                    onReset: { stage = .home })
             case .patientMessage:
                 PatientMessageView(
                     onStartLive: { inGuidedFlow = true; startLive() },
@@ -78,7 +79,7 @@ struct ContentView: View {
                 CareTeamView { stage = .discharged }
             case .discharged:
                 DischargedView {
-                    stage = .home
+                    stage = .portal      // close the loop back in the chart
                     inGuidedFlow = false
                 }
             }

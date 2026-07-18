@@ -108,6 +108,7 @@ struct NoteMarkdownView: View {
 
 struct ClinicianPortalView: View {
     let onHandoff: () -> Void
+    var onReset: (() -> Void)? = nil
     @State private var chart: [String: Any] = [:]
     @State private var handedOff = false
 
@@ -123,6 +124,8 @@ struct ClinicianPortalView: View {
             BackendClient.shared.fetchChart { chart = $0 }
         }
     }
+
+    private var relayStatus: [String: Any]? { chart["relay_status"] as? [String: Any] }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -141,6 +144,16 @@ struct ClinicianPortalView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding()
+            if let onReset {
+                Button {
+                    onReset()
+                } label: {
+                    Label("Reset demo", systemImage: "arrow.counterclockwise")
+                        .font(.caption)
+                }
+                .tint(.secondary)
+                .padding([.horizontal, .bottom])
+            }
         }
         .frame(width: 260)
         .background(.background)
@@ -175,6 +188,8 @@ struct ClinicianPortalView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if relayStatus != nil { relayCard }
+
                 NoteMarkdownView(markdown: chart["note"] as? String ?? "Loading note…")
                     .padding(18)
                     .background(.background, in: RoundedRectangle(cornerRadius: 12))
@@ -185,6 +200,53 @@ struct ClinicianPortalView: View {
             .frame(maxWidth: 720)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var relayCard: some View {
+        let rs = relayStatus ?? [:]
+        let cleared = (rs["discharge_state"] as? String ?? "in_review") == "cleared"
+        let blocked = rs["n_blocked"] as? Int ?? 0
+        let runId = rs["run_id"] as? String
+        let nFindings = rs["n_findings"] as? Int ?? 0
+        let nCritical = rs["n_critical"] as? Int ?? 0
+
+        let title: String = cleared
+            ? "Relay · Home readiness — VERIFIED, cleared for discharge"
+            : (blocked > 0 ? "Relay · Home readiness — plan BLOCKED by the home"
+                           : "Relay · Home readiness — assessment on file")
+        let icon: String = cleared ? "checkmark.seal.fill"
+            : (blocked > 0 ? "exclamationmark.octagon.fill" : "house.and.flag")
+        let color: Color = cleared ? .green : (blocked > 0 ? .red : .teal)
+        let tail: String = cleared
+            ? "barriers remediated & verified · FHIR write-back complete"
+            : "\(blocked) obligation(s) blocked"
+        let summary = "Walk-through \(runId ?? "—") · \(nFindings) findings "
+            + "(\(nCritical) critical) · " + tail
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.headline)
+                .foregroundStyle(color)
+
+            Text(summary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if rs["has_floorplan"] as? Bool == true, let runId {
+                AsyncImage(url: BackendClient.shared.baseURL
+                    .appendingPathComponent("floorplan")
+                    .appending(queryItems: [.init(name: "run", value: runId)])) { ph in
+                    if case .success(let img) = ph {
+                        img.resizable().scaledToFit().frame(maxHeight: 220)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .strokeBorder(color.opacity(0.4)))
     }
 
     private var planCard: some View {
@@ -529,9 +591,16 @@ struct DischargedView: View {
                 .font(.footnote.italic())
                 .foregroundStyle(.secondary)
                 .padding(.top, 6)
-            Button("Done") { onDone() }
-                .buttonStyle(.bordered)
-                .padding(.top, 8)
+            Button {
+                onDone()
+            } label: {
+                Label("Back to Monica's chart", systemImage: "arrow.uturn.backward")
+                    .font(.headline)
+                    .padding(.horizontal, 20).padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.teal)
+            .padding(.top, 8)
             Spacer()
         }
         .padding()
