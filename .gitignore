@@ -36,3 +36,9 @@ node_modules/
 
 # Demo recordings (local footage, large)
 demo_assets/
+
+# Runtime walkthrough data (frames include personal home footage)
+runs/
+
+# Separate scratch app from another session — not part of the submission
+relay-demo/
