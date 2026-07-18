@@ -119,25 +119,32 @@ async def resolve_confirmation(cid: str, req: Request):
 
 @app.post("/walkthrough/finish")
 def walkthrough_finish():
+    """Returns immediately; deep-pass drain + obligation scoring + escalations
+    finalize in the background (run.json appears when done, at which point the
+    care-team surfaces pick this run up)."""
     global _worker
     run = state.current()
-    if _worker is not None:
-        _worker.finish()
-        with _worker_lock:
-            _worker = None
-    # Close the loop: score care-plan obligations against evidence, route exceptions
-    from escalations import build_escalations
-    from journey import build_approvals
-    from obligations import score_obligations
-    try:
-        run.obligations = score_obligations(run)
-        run.escalations = build_escalations(run, run.obligations)
-        run.approvals = build_approvals(run)
-    except Exception as e:
-        print(f"[finish] obligation scoring failed (report still renders): {e}")
-    run.save()
-    return {"run_id": run.id, "n_findings": len(run.findings),
-            "n_escalations": len(run.escalations),
+    with _worker_lock:
+        worker, _worker = _worker, None
+
+    def _finalize():
+        from escalations import build_escalations
+        from journey import build_approvals
+        from obligations import score_obligations
+        if worker is not None:
+            worker.finish()
+        try:
+            run.obligations = score_obligations(run)
+            run.escalations = build_escalations(run, run.obligations)
+            run.approvals = build_approvals(run)
+        except Exception as e:
+            print(f"[finish] scoring failed (report still renders): {e}")
+        run.save()
+        print(f"[finish] run {run.id} finalized: {len(run.findings)} findings, "
+              f"{len(run.escalations)} escalations")
+
+    threading.Thread(target=_finalize, daemon=True).start()
+    return {"run_id": run.id, "processing": True,
             "report_url": f"/report?run={run.id}"}
 
 

@@ -71,21 +71,29 @@ final class BackendClient {
         getJSON("patient/chart", completion: completion)
     }
 
-    func fetchApprovals(completion: @escaping ([String: Any]) -> Void) {
-        getJSON("approvals", completion: completion)
+    func fetchApprovals(run: String? = nil,
+                        completion: @escaping ([String: Any]) -> Void) {
+        getJSON(run.map { "approvals?run=\($0)" } ?? "approvals",
+                completion: completion)
     }
 
-    func approve(id: String, completion: @escaping () -> Void) {
-        post("approvals/\(id)/approve", json: [:]) { _ in completion() }
+    func approve(id: String, run: String? = nil,
+                 completion: @escaping () -> Void) {
+        var body: [String: Any] = [:]
+        if let run { body["run"] = run }
+        post("approvals/\(id)/approve", json: body) { _ in completion() }
     }
 
-    func clearDischarge(completion: @escaping () -> Void) {
-        post("discharge/clear", json: [:]) { _ in completion() }
+    func clearDischarge(run: String? = nil, completion: @escaping () -> Void) {
+        var body: [String: Any] = [:]
+        if let run { body["run"] = run }
+        post("discharge/clear", json: body) { _ in completion() }
     }
 
     private func getJSON(_ path: String,
                          completion: @escaping ([String: Any]) -> Void) {
-        let url = baseURL.appendingPathComponent(path)
+        // URL(string:relativeTo:) keeps query strings intact
+        guard let url = URL(string: path, relativeTo: baseURL) else { return }
         session.dataTask(with: url) { data, _, _ in
             let obj = data.flatMap {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]

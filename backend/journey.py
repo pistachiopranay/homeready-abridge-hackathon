@@ -9,11 +9,12 @@ from patient import record
 from state import Run, load_run
 
 HANDOFF_MESSAGE = (
-    "Hi — this is Riley with Monica's care team at the rehab facility. Before "
-    "Monica comes home Friday, her care team asked for a quick walk-through of "
-    "her apartment to make sure everything is ready for her. Anyone at the home "
-    "can do it with an iPad — it takes about ten minutes and I'll guide you the "
-    "whole way. If nobody's available, we can send someone instead."
+    "Hi Monica — this is Riley with your care team at the rehab facility. "
+    "Before you come home Friday, your care team would like a quick walk-through "
+    "of your apartment to make sure everything is ready for you. Anyone at your "
+    "home can do it with any compatible device — it takes about ten minutes and "
+    "I'll guide them the whole way. Or, if you prefer, we can schedule an "
+    "in-person home visit from a partner service."
 )
 
 # The documented plan, as it appears in the encounter note (rendered in the

@@ -1,5 +1,109 @@
 import SwiftUI
 
+// MARK: - Patient-side chrome
+// The clinician side is teal + clinical; everything the patient/family sees is
+// warm indigo with a persistent top bar so the audience always knows whose
+// screen they're looking at.
+
+enum PatientTheme {
+    static let accent = Color.indigo
+    static let barGradient = LinearGradient(
+        colors: [Color.indigo, Color.purple.opacity(0.85)],
+        startPoint: .leading, endPoint: .trailing)
+}
+
+struct PatientChrome<Content: View>: View {
+    var subtitle: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "house.fill")
+                Text("Relay Home").font(.headline.bold())
+                Text("·").opacity(0.6)
+                Text(subtitle).font(.subheadline)
+                Spacer()
+                Image(systemName: "heart.fill").opacity(0.85)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .background(PatientTheme.barGradient)
+
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.indigo.opacity(0.04))
+        }
+        .tint(PatientTheme.accent)
+    }
+}
+
+// MARK: - Note markdown (faithful to the Abridge-style note)
+
+/// Block-level renderer for the note's actual structure:
+/// `**Section:** text` paragraphs, `### ` headings, `- ` bullets.
+struct NoteMarkdownView: View {
+    let markdown: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                blockView(block)
+            }
+        }
+    }
+
+    private enum Block {
+        case heading(String)
+        case bullet(String)
+        case paragraph(String)
+    }
+
+    private var blocks: [Block] {
+        markdown.components(separatedBy: "\n").compactMap { raw in
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { return nil }
+            if line.hasPrefix("### ") {
+                return .heading(String(line.dropFirst(4)))
+            }
+            if line.hasPrefix("- ") {
+                return .bullet(String(line.dropFirst(2)))
+            }
+            if line.hasPrefix("* ") {
+                return .bullet(String(line.dropFirst(2)))
+            }
+            return .paragraph(line)
+        }
+    }
+
+    private func inline(_ s: String) -> AttributedString {
+        (try? AttributedString(markdown: s,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(s)
+    }
+
+    @ViewBuilder
+    private func blockView(_ block: Block) -> some View {
+        switch block {
+        case .heading(let text):
+            Text(inline(text))
+                .font(.headline)
+                .padding(.top, 8)
+        case .bullet(let text):
+            HStack(alignment: .top, spacing: 8) {
+                Text("•").font(.callout)
+                Text(inline(text)).font(.callout)
+            }
+            .padding(.leading, 8)
+        case .paragraph(let text):
+            Text(inline(text))
+                .font(.callout)
+                .lineSpacing(2)
+        }
+    }
+}
+
 // MARK: - Clinician portal (Act 1)
 
 struct ClinicianPortalView: View {
@@ -14,6 +118,7 @@ struct ClinicianPortalView: View {
             notePane
         }
         .background(Color(.systemGroupedBackground))
+        .tint(.teal)
         .onAppear {
             BackendClient.shared.fetchChart { chart = $0 }
         }
@@ -70,28 +175,16 @@ struct ClinicianPortalView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(noteParagraphs, id: \.self) { para in
-                    Text((try? AttributedString(
-                        markdown: para,
-                        options: .init(interpretedSyntax:
-                            .inlineOnlyPreservingWhitespace)))
-                        ?? AttributedString(para))
-                        .font(.callout)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                NoteMarkdownView(markdown: chart["note"] as? String ?? "Loading note…")
+                    .padding(18)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 12))
 
                 planCard
             }
             .padding(24)
-            .frame(maxWidth: 700)
+            .frame(maxWidth: 720)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var noteParagraphs: [String] {
-        (chart["note"] as? String ?? "Loading note…")
-            .components(separatedBy: "\n\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 
     private var planCard: some View {
@@ -99,22 +192,16 @@ struct ClinicianPortalView: View {
             Label("Pre-discharge — home setup needed", systemImage: "house.badge.clock")
                 .font(.headline)
                 .foregroundStyle(.orange)
-            ForEach(chart["plan_items"] as? [String] ?? [], id: \.self) { item in
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "circle.fill").font(.system(size: 5))
-                        .padding(.top, 6)
-                    Text(item).font(.subheadline)
-                }
-            }
-            Text("The last item can't be verified from this chair.")
-                .font(.footnote.italic())
+            Text("The plan requires a formal pre-discharge assessment of home setup. "
+                 + "That can't be verified from this chair.")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             Button {
                 handedOff = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { onHandoff() }
             } label: {
-                Label(handedOff ? "Relay accepted — notifying patient…"
+                Label(handedOff ? "Relay accepted — notifying Monica…"
                                 : "Hand over to Relay",
                       systemImage: handedOff ? "checkmark.circle.fill"
                                              : "arrow.right.circle.fill")
@@ -141,52 +228,76 @@ struct PatientMessageView: View {
     let onStartDemo: () -> Void
     @State private var message = ""
     @State private var appeared = false
+    @State private var sentToHome = false
+    @State private var scheduled = false
 
     var body: some View {
-        VStack(spacing: 26) {
-            Spacer()
-            Image(systemName: "message.badge.filled.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.teal)
-            Text("New message from Monica's care team")
-                .font(.title3.bold())
-
-            Text(message.isEmpty ? "…" : message)
-                .font(.body)
-                .padding(20)
-                .frame(maxWidth: 560, alignment: .leading)
-                .background(.teal.opacity(0.1),
-                            in: RoundedRectangle(cornerRadius: 20))
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 12)
-
-            VStack(spacing: 12) {
-                Button {
-                    onStartLive()
-                } label: {
-                    Label("I'm here with the iPad — start the walk-through",
-                          systemImage: "figure.walk")
-                        .font(.headline)
-                        .padding(.horizontal, 24).padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.teal)
-
-                Button("Schedule a home visit instead") {}
+        PatientChrome(subtitle: "for Monica and her family") {
+            VStack(spacing: 24) {
+                Spacer()
+                Image(systemName: "message.badge.filled.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(PatientTheme.accent)
+                Text("To: Monica Hilpert")
+                    .font(.title3.bold())
+                Text("from Riley · your care team")
                     .font(.subheadline)
-                    .tint(.secondary)
+                    .foregroundStyle(.secondary)
 
-                Button {
-                    onStartDemo()
-                } label: {
-                    Label("replay recorded walk-through", systemImage: "play.rectangle")
-                        .font(.caption)
+                Text(message.isEmpty ? "…" : message)
+                    .font(.body)
+                    .padding(20)
+                    .frame(maxWidth: 560, alignment: .leading)
+                    .background(PatientTheme.accent.opacity(0.1),
+                                in: RoundedRectangle(cornerRadius: 20))
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 12)
+
+                VStack(spacing: 12) {
+                    Button {
+                        sentToHome = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                            onStartLive()
+                        }
+                    } label: {
+                        Label(sentToHome
+                              ? "Sent to Emma (niece) — opening on her device…"
+                              : "Send to anyone at home",
+                              systemImage: sentToHome ? "checkmark.circle.fill"
+                                                      : "paperplane.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 24).padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(sentToHome ? .green : PatientTheme.accent)
+                    .disabled(sentToHome)
+
+                    Button {
+                        scheduled = true
+                    } label: {
+                        Label(scheduled
+                              ? "Request sent — the scheduling team will call you"
+                              : "Schedule an in-person home visit",
+                              systemImage: scheduled ? "checkmark.circle"
+                                                     : "calendar.badge.plus")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(scheduled || sentToHome)
+
+                    Button {
+                        onStartDemo()
+                    } label: {
+                        Label("replay recorded walk-through",
+                              systemImage: "play.rectangle")
+                            .font(.caption)
+                    }
+                    .tint(.secondary)
                 }
-                .tint(.secondary)
+                Spacer()
             }
-            Spacer()
+            .padding()
         }
-        .padding()
         .onAppear {
             BackendClient.shared.fetchChart {
                 message = $0["handoff_message"] as? String ?? ""
@@ -196,43 +307,41 @@ struct PatientMessageView: View {
     }
 }
 
-// MARK: - Thanks / generating (Act 4)
+// MARK: - Thanks (Act 4) — never blocks; report finalizes in the background
 
 struct ThanksView: View {
-    let reportReady: Bool
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: reportReady ? "checkmark.seal.fill" : "sparkles")
-                .font(.system(size: 56))
-                .foregroundStyle(reportReady ? .green : .teal)
-            Text("Thank you so much!")
-                .font(.largeTitle.bold())
-            if reportReady {
-                Text("Monica's report has been shared with her care team.")
+        PatientChrome(subtitle: "walk-through complete") {
+            VStack(spacing: 24) {
+                Spacer()
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(.green)
+                Text("Thank you so much!")
+                    .font(.largeTitle.bold())
+                Text("Everything we saw and heard is being prepared\ninto a report for Monica's care team.")
                     .font(.title3)
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
+                Text("You're all set — the care team takes it from here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
                 Button {
                     onContinue()
                 } label: {
-                    Label("Care team view", systemImage: "stethoscope")
+                    Label("Switch to care-team view", systemImage: "stethoscope")
                         .font(.headline)
                         .padding(.horizontal, 28).padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.teal)
-            } else {
-                Text("Reviewing everything we saw and heard,\npreparing a report for Monica's care team…")
-                    .font(.title3)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                ProgressView().controlSize(.large)
+                Spacer()
             }
-            Spacer()
+            .padding()
         }
-        .padding()
     }
 }
 
@@ -250,16 +359,41 @@ struct CareTeamView: View {
     let onCleared: () -> Void
     @State private var approvals: [Approval] = []
     @State private var runId: String?
+    @State private var selectedRun: String?     // nil = latest finished
+    @State private var sampleRuns: [String] = []
     @State private var blocked = 0
     @State private var allApproved = false
     @State private var clearing = false
+    private let timer = Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Label("Care-team review — walkthrough report received",
-                      systemImage: "tray.full.fill")
-                    .font(.title2.bold())
+                HStack {
+                    Label("Care-team review", systemImage: "tray.full.fill")
+                        .font(.title2.bold())
+                    Spacer()
+                    Menu {
+                        Button("Latest walkthrough") { selectedRun = nil; refresh() }
+                        ForEach(sampleRuns, id: \.self) { r in
+                            Button(r) { selectedRun = r; refresh() }
+                        }
+                    } label: {
+                        Label(selectedRun ?? "latest", systemImage: "clock.arrow.circlepath")
+                            .font(.footnote.monospaced())
+                    }
+                }
+
+                if approvals.isEmpty {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Report finalizing — findings land as they're graded. "
+                             + "Pick a sample run above to review a completed one now.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                }
 
                 if blocked > 0 {
                     Label("The current discharge plan will not work: "
@@ -281,10 +415,13 @@ struct CareTeamView: View {
                             img.resizable().scaledToFit().frame(maxHeight: 260)
                         }
                     }
+                    .id(runId)
                 }
 
-                Text("Drafted by Relay — awaiting clinician approval")
-                    .font(.headline)
+                if !approvals.isEmpty {
+                    Text("Drafted by Relay — awaiting clinician approval")
+                        .font(.headline)
+                }
 
                 ForEach(approvals) { a in
                     HStack(alignment: .top, spacing: 12) {
@@ -314,7 +451,7 @@ struct CareTeamView: View {
                 if allApproved {
                     Button {
                         clearing = true
-                        BackendClient.shared.clearDischarge {
+                        BackendClient.shared.clearDischarge(run: selectedRun) {
                             onCleared()
                         }
                     } label: {
@@ -335,11 +472,20 @@ struct CareTeamView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Color(.systemGroupedBackground))
-        .onAppear(perform: refresh)
+        .tint(.teal)
+        .onAppear {
+            refresh()
+            BackendClient.shared.fetchRuns { items in
+                sampleRuns = items.compactMap { $0["run_id"] as? String }
+            }
+        }
+        .onReceive(timer) { _ in
+            if approvals.isEmpty || !allApproved { refresh() }
+        }
     }
 
     private func refresh() {
-        BackendClient.shared.fetchApprovals { obj in
+        BackendClient.shared.fetchApprovals(run: selectedRun) { obj in
             runId = obj["run_id"] as? String
             blocked = obj["n_blocked"] as? Int ?? 0
             approvals = (obj["approvals"] as? [[String: Any]] ?? []).map {
@@ -355,7 +501,7 @@ struct CareTeamView: View {
     }
 
     private func approve(_ a: Approval) {
-        BackendClient.shared.approve(id: a.id) { refresh() }
+        BackendClient.shared.approve(id: a.id, run: selectedRun) { refresh() }
     }
 }
 

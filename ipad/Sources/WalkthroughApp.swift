@@ -26,7 +26,6 @@ struct ContentView: View {
     @State private var demoPlayer: AVPlayer?
     @State private var room = "entry"
     @State private var reportURL: String?
-    @State private var reportReady = false
     @State private var finishing = false
     @State private var showPastRuns = false
 
@@ -74,7 +73,7 @@ struct ContentView: View {
                     onStartLive: { inGuidedFlow = true; startLive() },
                     onStartDemo: { inGuidedFlow = true; startDemoReplay() })
             case .thanks:
-                ThanksView(reportReady: reportReady) { stage = .careTeam }
+                ThanksView { stage = .careTeam }
             case .careTeam:
                 CareTeamView { stage = .discharged }
             case .discharged:
@@ -191,9 +190,20 @@ struct ContentView: View {
                     .ignoresSafeArea()
             }
 
-            VStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: "house.fill")
+                    Text("Relay Home · walk-through with Riley")
+                        .font(.footnote.bold())
+                    Spacer()
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(PatientTheme.barGradient.opacity(0.9))
+
                 ConfirmationOverlay()
-                    .padding(.top, 14)
+                    .padding(.top, 10)
                 Spacer()
             }
 
@@ -204,7 +214,7 @@ struct ContentView: View {
                 }
                 Spacer()
             }
-            .padding(.top, 14)
+            .padding(.top, 44)
             .padding(.trailing, 14)
 
             VStack(spacing: 12) {
@@ -276,7 +286,6 @@ struct ContentView: View {
         Task { await voice.stop() }
 
         if inGuidedFlow {
-            reportReady = false
             walking = false
             stage = .thanks
         }
@@ -285,9 +294,7 @@ struct ContentView: View {
             BackendClient.shared.finishWalkthrough { url in
                 reportURL = url
                 finishing = false
-                if inGuidedFlow {
-                    reportReady = true
-                } else {
+                if !inGuidedFlow {
                     walking = false
                 }
             }
