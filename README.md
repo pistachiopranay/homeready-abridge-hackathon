@@ -1,4 +1,6 @@
-# Steady — post-discharge home-safety walkthrough agent
+# Relay — care doesn't end at the encounter
+
+**Relay is a chart-aware agent that carries the clinical care plan into the patient's real world** — it derives post-encounter obligations from the encounter documentation, gathers evidence (voice, vision, LiDAR), verifies what's possible, and escalates what isn't. First workflow: post-discharge home readiness.
 
 **Abridge Hackathon 2026.** Falls after hospital discharge are a leading driver of
 readmissions: patients leave rehab deconditioned, into homes full of hazards nobody
