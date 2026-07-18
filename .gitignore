@@ -42,3 +42,6 @@ runs/
 
 # Separate scratch app from another session — not part of the submission
 relay-demo/
+
+# Local agent notes (contains venue creds — never commit)
+AGENTS.md
