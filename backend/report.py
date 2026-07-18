@@ -45,7 +45,28 @@ th{background:#fbfcfc;color:#566573;font-size:12px;text-transform:uppercase}
 .draft b{display:block;margin-bottom:4px}
 .footer{color:#808b96;font-size:12px;margin:30px 0;text-align:center}
 .pill{background:#eaeded;border-radius:10px;padding:1px 8px;font-size:11px;color:#566573}
+.ob{background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:8px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:13.5px}
+.ob .quote{color:#808b96;font-style:italic;font-size:12.5px}
+.ob .ev{margin-top:4px}
+.esc{background:#fff;border-radius:10px;margin-bottom:12px;overflow:hidden;
+     box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:13.5px}
+.esc .head{padding:10px 16px;color:#fff;display:flex;justify-content:space-between;
+     align-items:center;font-weight:700}
+.esc .body{padding:12px 16px}
+.esc .body p{margin:4px 0}
+.esc .k{color:#566573;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+     display:inline-block;width:86px}
 """
+
+OB_STATUS = {
+    "verified":   ("#1e8449", "VERIFIED"),
+    "at_risk":    ("#d68910", "AT RISK"),
+    "blocked":    ("#c0392b", "BLOCKED"),
+    "unverified": ("#808b96", "UNVERIFIED"),
+}
+ESC_COLOR = {"clinical": "#c0392b", "operational": "#d68910",
+             "social": "#7d3c98", "routine": "#2874a6"}
 
 
 def _img_tag(frame_path: str) -> str:
@@ -117,41 +138,81 @@ def render_report(run: Run) -> str:
         f"<td>{html.escape(r['priority'])}</td></tr>"
         for r in routing(hazards, run.conversation))
 
+    obligations_html = ""
+    for ob in getattr(run, "obligations", []):
+        color, label = OB_STATUS.get(ob.get("status", "unverified"),
+                                     OB_STATUS["unverified"])
+        obligations_html += f"""<div class="ob" style="border-left:5px solid {color}">
+          <span class="sev" style="background:{color}">{label}</span>
+          <b>{html.escape(ob.get('obligation', ''))}</b>
+          <div class="quote">note: “{html.escape(ob.get('source_quote', ''))}”</div>
+          <div class="ev">→ {html.escape(ob.get('evidence', ''))}</div></div>"""
+
+    esc_html = ""
+    for e in getattr(run, "escalations", []):
+        color = ESC_COLOR.get(e["level"], "#566573")
+        esc_html += f"""<div class="esc">
+          <div class="head" style="background:{color}">
+            <span>{e['level'].upper()} EXCEPTION → {html.escape(e['owner'])}</span>
+            <span style="font-weight:400;font-size:12px">due: {html.escape(e['deadline'])}</span>
+          </div>
+          <div class="body">
+            <p><span class="k">Expected</span> {html.escape(e['expected'])}</p>
+            <p><span class="k">Observed</span> {html.escape(e['observed'])}</p>
+            <p><span class="k">Why</span> {html.escape(e['why'])}</p>
+            <p><span class="k">Attempted</span> {html.escape(e['attempted'])}</p>
+            <p><span class="k">Next</span> <b>{html.escape(e['next_action'])}</b></p>
+          </div></div>"""
+
     bundle = draft_bundle(run)
+    n_blocked = sum(1 for ob in getattr(run, "obligations", [])
+                    if ob.get("status") == "blocked")
 
     return f"""<!doctype html><html><head><meta charset="utf-8">
-<title>Home Safety Walkthrough — {pt['name']}</title><style>{CSS}</style></head><body>
+<title>Relay — Home-Readiness Report — {pt['name']}</title><style>{CSS}</style></head><body>
 <div class="wrap">
 <header>
-  <h1>Home Safety Walkthrough Report</h1>
-  <div class="sub">STEADI-aligned pre-discharge assessment · agent-conducted · run {run.id}</div>
+  <h1>Relay · Home-Readiness Report</h1>
+  <div class="sub">Care does not end at the encounter — agent-conducted, STEADI-aligned
+  · run {run.id}</div>
   <div class="banner">
     <div><b>Patient</b>{pt['name']}, {pt['age']}{pt['sex']}</div>
     <div><b>Context</b>{html.escape(pt['visit_title'])} → home Friday</div>
     <div><b>Findings</b>{len(hazards)} hazards ({n_crit} critical)</div>
+    <div><b>Plan status</b>{n_blocked} obligation(s) blocked</div>
     <div><b>Frames analyzed</b>{len(run.frames)}</div>
   </div>
 </header>
 
-<h2>1 · Graded findings</h2>
+<h2>1 · Care-plan obligations — derived from the encounter documentation</h2>
+<p class="meta">Relay read the SNF note + after-visit summary (Abridge-style artifacts)
+and derived what must be true at home for this plan to work, then scored each against
+walkthrough evidence.</p>
+{obligations_html or '<p class="meta">Obligation scoring runs when the walkthrough finishes.</p>'}
+
+<h2>2 · Escalations — routed to owners with evidence and deadlines</h2>
+{esc_html or '<p class="meta">No exceptions raised yet.</p>'}
+
+<h2>3 · Graded findings</h2>
 {cards or '<p class="meta">No findings yet — walkthrough in progress.</p>'}
 
-<h2>2 · Measurements (LiDAR)</h2>
+<h2>4 · Measurements (LiDAR)</h2>
 {measures or '<p class="meta">No room scans captured.</p>'}
 
-<h2>3 · Patient-reported context (voice walkthrough)</h2>
+<h2>5 · Patient-reported context (voice walkthrough)</h2>
 {confirms}
 <div class="qa">{qa or '<p class="meta">No conversation captured.</p>'}</div>
 
-<h2>4 · Drafted actions — not sent, clinician review required</h2>
+<h2>6 · Drafted actions — not sent, clinician review required</h2>
 {dme or '<p class="meta">No DME indicated by findings.</p>'}
 <table><tr><th>Route to</th><th>Why</th><th>Priority</th></tr>{routes}</table>
 
-<h2>5 · FHIR write-back (draft)</h2>
-<p class="meta">{len(bundle['entry'])} draft resources (Observations + ServiceRequests) —
-<a href="/report/fhir?run={run.id}">view JSON bundle</a></p>
+<h2>7 · FHIR write-back (draft)</h2>
+<p class="meta">{len(bundle['entry'])} draft resources (Observations, ServiceRequests,
+escalation Tasks) — <a href="/report/fhir?run={run.id}">view JSON bundle</a></p>
 
-<div class="footer">Generated by walkthrough agent · detection: Claude vision ·
-grading: CDC STEADI / HSSAT · all orders are drafts pending clinician review ·
+<div class="footer"><b>Abridge captures the encounter. Relay carries the care forward.</b><br>
+detection: Claude vision · grading: CDC STEADI / HSSAT · measurements: LiDAR ·
+all orders and escalations are drafts pending clinician review ·
 synthetic patient (Synthea) — demo only</div>
 </div></body></html>"""

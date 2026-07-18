@@ -127,8 +127,17 @@ def walkthrough_finish():
         _worker.finish()
         with _worker_lock:
             _worker = None
+    # Close the loop: score care-plan obligations against evidence, route exceptions
+    from escalations import build_escalations
+    from obligations import score_obligations
+    try:
+        run.obligations = score_obligations(run)
+        run.escalations = build_escalations(run, run.obligations)
+    except Exception as e:
+        print(f"[finish] obligation scoring failed (report still renders): {e}")
     run.save()
     return {"run_id": run.id, "n_findings": len(run.findings),
+            "n_escalations": len(run.escalations),
             "report_url": f"/report?run={run.id}"}
 
 

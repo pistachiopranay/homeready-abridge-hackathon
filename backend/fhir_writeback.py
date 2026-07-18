@@ -96,8 +96,13 @@ def routing(findings: list[dict], conversation: list[dict]) -> list[dict]:
 
 
 def draft_bundle(run: Run) -> dict:
+    from escalations import escalation_tasks
     hazards = [f for f in run.findings if f.get("hazard")]
-    entries = [hazard_observation(f) for f in hazards] + dme_requests(hazards)
+    entries = (
+        [hazard_observation(f) for f in hazards]
+        + dme_requests(hazards)
+        + escalation_tasks(getattr(run, "escalations", []), _patient_ref())
+    )
     return {
         "resourceType": "Bundle",
         "type": "collection",
