@@ -199,6 +199,8 @@ struct ContentView: View {
             } else {
                 RoomCaptureViewRep()
                     .ignoresSafeArea()
+                DetectionOverlayView()
+                    .ignoresSafeArea()
             }
 
             VStack(spacing: 0) {
