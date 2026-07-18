@@ -10,63 +10,82 @@ from patient import patient_display
 from state import Run
 
 SEV_ORDER = {"critical": 0, "moderate": 1, "low": 2, "none": 3}
-SEV_COLOR = {"critical": "#c0392b", "moderate": "#d68910", "low": "#2874a6", "none": "#1e8449"}
+SEV_COLOR = {"critical": "#B42318", "moderate": "#B54708", "low": "#3E6DB5", "none": "#1E7A46"}
 SEV_LABEL = {"critical": "CRITICAL", "moderate": "MODERATE", "low": "LOW", "none": "CLEAR"}
 
-CSS = """
-body{font-family:-apple-system,'Helvetica Neue',sans-serif;margin:0;background:#f4f6f7;color:#1c2833}
-.wrap{max-width:900px;margin:0 auto;padding:24px}
-header{background:#17202a;color:#fff;padding:20px 24px;border-radius:10px;margin-bottom:20px}
-header h1{margin:0 0 4px;font-size:22px} header .sub{color:#aab7b8;font-size:14px}
-.banner{display:flex;gap:24px;margin-top:12px;font-size:14px}
-.banner div b{display:block;color:#85929e;font-size:11px;text-transform:uppercase}
-h2{font-size:16px;text-transform:uppercase;letter-spacing:.06em;color:#566573;
-   border-bottom:2px solid #d5dbdb;padding-bottom:6px;margin:28px 0 14px}
-.card{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;
-      box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;gap:16px}
-.card img{width:180px;height:135px;object-fit:cover;border-radius:8px;flex-shrink:0}
-.sev{display:inline-block;padding:2px 10px;border-radius:12px;color:#fff;
-     font-size:11px;font-weight:700;letter-spacing:.05em}
-.card h3{margin:6px 0 6px;font-size:15px}
-.card p{margin:4px 0;font-size:13.5px;line-height:1.45}
-.card .why{color:#7b241c} .card .rec{color:#145a32;font-weight:600}
-.meta{color:#808b96;font-size:12px}
-.measure{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:8px;
-         box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:14px}
-.measure.fail{border-left:5px solid #c0392b}.measure.ok{border-left:5px solid #1e8449}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;
-      box-shadow:0 1px 3px rgba(0,0,0,.08)}
-td,th{padding:10px 14px;font-size:13.5px;text-align:left;border-bottom:1px solid #eaeded}
-th{background:#fbfcfc;color:#566573;font-size:12px;text-transform:uppercase}
-.qa{background:#fff;border-radius:10px;padding:4px 16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.qa p{font-size:13.5px;line-height:1.5}.qa .q{color:#566573}
-.draft{border:2px dashed #d68910;border-radius:10px;padding:14px 16px;margin-bottom:10px;
-       background:#fef9e7;font-size:13.5px}
-.draft b{display:block;margin-bottom:4px}
-.footer{color:#808b96;font-size:12px;margin:30px 0;text-align:center}
-.pill{background:#eaeded;border-radius:10px;padding:1px 8px;font-size:11px;color:#566573}
-.ob{background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:8px;
-    box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:13.5px}
-.ob .quote{color:#808b96;font-style:italic;font-size:12.5px}
-.ob .ev{margin-top:4px}
-.esc{background:#fff;border-radius:10px;margin-bottom:12px;overflow:hidden;
-     box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:13.5px}
-.esc .head{padding:10px 16px;color:#fff;display:flex;justify-content:space-between;
-     align-items:center;font-weight:700}
-.esc .body{padding:12px 16px}
-.esc .body p{margin:4px 0}
-.esc .k{color:#566573;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
-     display:inline-block;width:86px}
+# Design baseline: Abridge — warm paper surfaces, warm ink, red-orange brand
+# accent, taupe hairlines. Severity colors stay semantic (deeper, calmer reds)
+# so "critical" never reads as brand decoration.
+INK = "#141312"
+INK2 = "#6D645A"
+PAPER = "#FBF9F6"
+PAPER2 = "#F7F2ED"
+HAIR = "rgba(167,152,138,.35)"
+BRAND = "#EA2C00"
+BLUE = "#76A8F4"
+
+CSS = f"""
+body{{font-family:'Avantt','Inter',-apple-system,'Helvetica Neue',sans-serif;margin:0;
+     background:{PAPER};color:{INK}}}
+.wrap{{max-width:920px;margin:0 auto;padding:28px 24px}}
+header{{background:{INK};color:#fff;padding:22px 26px;border-radius:16px;margin-bottom:24px}}
+header h1{{margin:0 0 4px;font-size:23px;letter-spacing:-.01em}}
+header h1 .dot{{color:{BRAND}}}
+header .sub{{color:rgba(255,255,255,.55);font-size:13.5px}}
+.banner{{display:flex;gap:28px;margin-top:14px;font-size:14px;flex-wrap:wrap}}
+.banner div b{{display:block;color:rgba(255,255,255,.45);font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}}
+h2{{font-size:13.5px;text-transform:uppercase;letter-spacing:.1em;color:{INK2};
+   border-bottom:1px solid {HAIR};padding-bottom:8px;margin:34px 0 16px}}
+.card{{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;
+      border:1px solid {HAIR};display:flex;gap:16px}}
+.card img{{width:180px;height:135px;object-fit:cover;border-radius:10px;flex-shrink:0}}
+.sev{{display:inline-block;padding:2px 10px;border-radius:12px;color:#fff;
+     font-size:10.5px;font-weight:700;letter-spacing:.06em}}
+.card h3{{margin:6px 0 6px;font-size:15.5px;letter-spacing:-.01em}}
+.card p{{margin:4px 0;font-size:13.5px;line-height:1.5}}
+.card .why{{color:#7A1F00}} .card .rec{{color:#1E7A46;font-weight:600}}
+.meta{{color:{INK2};font-size:12.5px}}
+.measure{{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:8px;
+         border:1px solid {HAIR};font-size:14px}}
+.measure.fail{{border-left:4px solid {BRAND}}}.measure.ok{{border-left:4px solid #1E7A46}}
+table{{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;
+      border:1px solid {HAIR}}}
+td,th{{padding:10px 14px;font-size:13.5px;text-align:left;border-bottom:1px solid {HAIR}}}
+th{{background:{PAPER2};color:{INK2};font-size:11px;text-transform:uppercase;
+    letter-spacing:.08em}}
+.qa{{background:#fff;border-radius:12px;padding:4px 16px;border:1px solid {HAIR}}}
+.qa p{{font-size:13.5px;line-height:1.55}}.qa .q{{color:{INK2}}}
+.draft{{border:1.5px dashed #B54708;border-radius:12px;padding:14px 16px;margin-bottom:10px;
+       background:#FDF6EC;font-size:13.5px}}
+.draft b{{display:block;margin-bottom:4px}}
+.footer{{color:{INK2};font-size:12px;margin:34px 0 10px;text-align:center;line-height:1.7}}
+.pill{{background:{PAPER2};border:1px solid {HAIR};border-radius:10px;padding:1px 9px;
+      font-size:11px;color:{INK2}}}
+.ob{{background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:8px;
+    border:1px solid {HAIR};font-size:13.5px}}
+.ob .quote{{color:{INK2};font-style:italic;font-size:12.5px}}
+.ob .ev{{margin-top:4px}}
+.esc{{background:#fff;border-radius:14px;margin-bottom:12px;overflow:hidden;
+     border:1px solid {HAIR};font-size:13.5px}}
+.esc .head{{padding:10px 16px;color:#fff;display:flex;justify-content:space-between;
+     align-items:center;font-weight:700}}
+.esc .body{{padding:12px 16px}}
+.esc .body p{{margin:4px 0}}
+.esc .k{{color:{INK2};font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+     display:inline-block;width:86px}}
+.embed header,.embed .footer{{display:none}}
+.embed .wrap{{padding:6px 18px}}
 """
 
 OB_STATUS = {
-    "verified":   ("#1e8449", "VERIFIED"),
-    "at_risk":    ("#d68910", "AT RISK"),
-    "blocked":    ("#c0392b", "BLOCKED"),
-    "unverified": ("#808b96", "UNVERIFIED"),
+    "verified":   ("#1E7A46", "VERIFIED"),
+    "at_risk":    ("#B54708", "AT RISK"),
+    "blocked":    ("#B42318", "BLOCKED"),
+    "unverified": ("#8A8078", "UNVERIFIED"),
 }
-ESC_COLOR = {"clinical": "#c0392b", "operational": "#d68910",
-             "social": "#7d3c98", "routine": "#2874a6"}
+ESC_COLOR = {"clinical": "#B42318", "operational": "#B54708",
+             "social": "#6941C6", "routine": "#3E6DB5"}
 
 
 def _img_tag(frame_path: str) -> str:
@@ -93,7 +112,7 @@ def _finding_card(f: dict, run: Run) -> str:
     </div></div>"""
 
 
-def render_report(run: Run) -> str:
+def render_report(run: Run, embed: bool = False) -> str:
     pt = patient_display()
     findings = sorted(run.findings, key=lambda f: SEV_ORDER.get(f.get("severity"), 9))
     hazards = [f for f in findings if f.get("hazard")]
@@ -169,10 +188,11 @@ def render_report(run: Run) -> str:
                     if ob.get("status") == "blocked")
 
     return f"""<!doctype html><html><head><meta charset="utf-8">
-<title>Relay — Home-Readiness Report — {pt['name']}</title><style>{CSS}</style></head><body>
+<title>Relay — Home-Readiness Report — {pt['name']}</title><style>{CSS}</style></head>
+<body class="{'embed' if embed else ''}">
 <div class="wrap">
 <header>
-  <h1>Relay · Home-Readiness Report</h1>
+  <h1>Relay<span class="dot">.</span> Home-Readiness Report</h1>
   <div class="sub">Care does not end at the encounter — agent-conducted, STEADI-aligned
   · run {run.id}</div>
   <div class="banner">

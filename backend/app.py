@@ -163,12 +163,22 @@ def get_state():
 
 
 @app.get("/report", response_class=HTMLResponse)
-def report(run: str | None = None):
+def report(run: str | None = None, embed: int = 0):
     from report import render_report
     r = state.load_run(run) if run else state.current()
     if r is None:
         return HTMLResponse("<h1>run not found</h1>", status_code=404)
-    return render_report(r)
+    return render_report(r, embed=bool(embed))
+
+
+@app.get("/frames/{run_id}/{index}.jpg")
+def frame_image(run_id: str, index: int):
+    from fastapi.responses import FileResponse
+    from config import RUNS_DIR
+    path = RUNS_DIR / run_id / "frames" / f"{index:04d}.jpg"
+    if not path.exists():
+        return JSONResponse({"error": "frame not found"}, status_code=404)
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @app.get("/report/fhir")
@@ -233,6 +243,7 @@ def get_approvals(run: str | None = None):
         return {"run_id": None, "approvals": [], "discharge_state": "in_review"}
     return {"run_id": r.id, "approvals": r.approvals,
             "discharge_state": r.discharge_state,
+            "n_frames": len(r.frames),
             "n_blocked": sum(1 for o in r.obligations
                              if o.get("status") == "blocked")}
 

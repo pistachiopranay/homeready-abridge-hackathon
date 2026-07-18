@@ -1,4 +1,38 @@
 import SwiftUI
+import WebKit
+
+// MARK: - Design tokens (baseline: Abridge — warm paper, warm ink, red-orange)
+
+enum RelayTheme {
+    static let brand = Color(red: 0.918, green: 0.173, blue: 0.0)          // #EA2C00
+    static let ink = Color(red: 0.078, green: 0.075, blue: 0.071)          // #141312
+    static let inkSecondary = Color(red: 0.427, green: 0.392, blue: 0.353) // #6D645A
+    static let paper = Color(red: 0.984, green: 0.976, blue: 0.965)        // #FBF9F6
+    static let paper2 = Color(red: 0.969, green: 0.949, blue: 0.929)       // #F7F2ED
+    static let hairline = Color(red: 0.655, green: 0.596, blue: 0.541).opacity(0.35)
+    static let blue = Color(red: 0.463, green: 0.659, blue: 0.957)         // #76A8F4
+    static let blueDeep = Color(red: 0.243, green: 0.427, blue: 0.710)     // #3E6DB5
+    static let green = Color(red: 0.118, green: 0.478, blue: 0.275)        // #1E7A46
+    static let amber = Color(red: 0.710, green: 0.278, blue: 0.031)        // #B54708
+    static let red = Color(red: 0.706, green: 0.137, blue: 0.094)          // #B42318
+}
+
+/// The server-rendered report, embedded (embed=1 hides its header/footer)
+struct ReportWebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let wv = WKWebView()
+        wv.isOpaque = false
+        wv.backgroundColor = UIColor(RelayTheme.paper)
+        wv.load(URLRequest(url: url))
+        return wv
+    }
+
+    func updateUIView(_ wv: WKWebView, context: Context) {
+        if wv.url != url { wv.load(URLRequest(url: url)) }
+    }
+}
 
 // MARK: - Patient-side chrome
 // The clinician side is teal + clinical; everything the patient/family sees is
@@ -6,9 +40,9 @@ import SwiftUI
 // screen they're looking at.
 
 enum PatientTheme {
-    static let accent = Color.indigo
+    static let accent = RelayTheme.blueDeep
     static let barGradient = LinearGradient(
-        colors: [Color.indigo, Color.purple.opacity(0.85)],
+        colors: [RelayTheme.blueDeep, RelayTheme.blue],
         startPoint: .leading, endPoint: .trailing)
 }
 
@@ -33,7 +67,7 @@ struct PatientChrome<Content: View>: View {
 
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.indigo.opacity(0.04))
+                .background(RelayTheme.blue.opacity(0.06))
         }
         .tint(PatientTheme.accent)
     }
@@ -121,8 +155,8 @@ struct ClinicianPortalView: View {
             Divider()
             notePane
         }
-        .background(Color(.systemGroupedBackground))
-        .tint(.teal)
+        .background(RelayTheme.paper2)
+        .tint(RelayTheme.brand)
         .onAppear {
             loadChart()
             BackendClient.shared.fetchPatients { patients = $0 }
@@ -181,7 +215,7 @@ struct ClinicianPortalView: View {
 
     private func patientRow(name: String, detail: String, active: Bool) -> some View {
         HStack {
-            Circle().fill(active ? .teal : .gray.opacity(0.3))
+            Circle().fill(active ? RelayTheme.brand : RelayTheme.hairline)
                 .frame(width: 34, height: 34)
                 .overlay(Text(String(name.prefix(1))).foregroundStyle(.white).bold())
             VStack(alignment: .leading) {
@@ -192,7 +226,7 @@ struct ClinicianPortalView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
-        .background(active ? Color.teal.opacity(0.08) : .clear)
+        .background(active ? RelayTheme.brand.opacity(0.07) : .clear)
     }
 
     private var notePane: some View {
@@ -222,7 +256,7 @@ struct ClinicianPortalView: View {
                             .padding(.vertical, 8)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.teal)
+                    .tint(RelayTheme.brand)
                 }
 
                 NoteMarkdownView(markdown: chart["note"] as? String ?? "Loading note…")
@@ -280,7 +314,7 @@ struct ClinicianPortalView: View {
                            : "Relay · Home readiness — assessment on file")
         let icon: String = cleared ? "checkmark.seal.fill"
             : (blocked > 0 ? "exclamationmark.octagon.fill" : "house.and.flag")
-        let color: Color = cleared ? .green : (blocked > 0 ? .red : .teal)
+        let color: Color = cleared ? RelayTheme.green : (blocked > 0 ? RelayTheme.red : RelayTheme.blueDeep)
         let tail: String = cleared
             ? "barriers remediated & verified · FHIR write-back complete"
             : "\(blocked) obligation(s) blocked"
@@ -336,7 +370,7 @@ struct ClinicianPortalView: View {
                     .padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
-            .tint(handedOff ? .green : .teal)
+            .tint(handedOff ? RelayTheme.green : RelayTheme.brand)
             .disabled(handedOff)
         }
         .padding(18)
@@ -463,7 +497,7 @@ struct ThanksView: View {
                         .padding(.horizontal, 28).padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.teal)
+                .tint(RelayTheme.brand)
                 Spacer()
             }
             .padding()
@@ -487,128 +521,31 @@ struct CareTeamView: View {
     var onBack: (() -> Void)? = nil
     @State private var approvals: [Approval] = []
     @State private var runId: String?
-    @State private var selectedRun: String?     // nil = latest finished
+    @State private var selectedRun: String?
     @State private var sampleRuns: [String] = []
     @State private var blocked = 0
+    @State private var nFrames = 0
     @State private var allApproved = false
     @State private var clearing = false
     private let timer = Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()
 
+    private var approvedCount: Int {
+        approvals.filter { $0.status == "approved" }.count
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    if let onBack {
-                        Button {
-                            onBack()
-                        } label: {
-                            Label("Chart", systemImage: "chevron.left")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    Label("Care-team review", systemImage: "tray.full.fill")
-                        .font(.title2.bold())
-                    Spacer()
-                    Menu {
-                        Button("Latest walkthrough") { selectedRun = nil; refresh() }
-                        ForEach(sampleRuns, id: \.self) { r in
-                            Button(r) { selectedRun = r; refresh() }
-                        }
-                    } label: {
-                        Label(selectedRun ?? "latest", systemImage: "clock.arrow.circlepath")
-                            .font(.footnote.monospaced())
-                    }
-                }
-
-                if approvals.isEmpty {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Report finalizing — findings land as they're graded. "
-                             + "Pick a sample run above to review a completed one now.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(14)
-                }
-
-                if blocked > 0 {
-                    Label("The current discharge plan will not work: "
-                          + "\(blocked) care-plan obligation(s) BLOCKED by the home.",
-                          systemImage: "exclamationmark.octagon.fill")
-                        .font(.headline)
-                        .foregroundStyle(.red)
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.red.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: 12))
-                }
-
-                if let runId {
-                    AsyncImage(url: BackendClient.shared.baseURL
-                        .appendingPathComponent("floorplan")
-                        .appending(queryItems: [.init(name: "run", value: runId)])) { ph in
-                        if case .success(let img) = ph {
-                            img.resizable().scaledToFit().frame(maxHeight: 260)
-                        }
-                    }
-                    .id(runId)
-                }
-
-                if !approvals.isEmpty {
-                    Text("Drafted by Relay — awaiting clinician approval")
-                        .font(.headline)
-                }
-
-                ForEach(approvals) { a in
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(a.kind.uppercased())
-                                .font(.caption2.bold())
-                                .foregroundStyle(a.kind == "clinical" ? .red :
-                                                 a.kind == "dme" ? .teal : .orange)
-                            Text(a.title).font(.subheadline.bold())
-                            Text(a.detail).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if a.status == "approved" {
-                            Label("Approved", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.subheadline.bold())
-                        } else {
-                            Button("Approve") { approve(a) }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.green)
-                        }
-                    }
-                    .padding(14)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 12))
-                }
-
-                if allApproved {
-                    Button {
-                        clearing = true
-                        BackendClient.shared.clearDischarge(run: selectedRun) {
-                            onCleared()
-                        }
-                    } label: {
-                        Label(clearing ? "Updating chart…"
-                              : "Remediations verified — update chart & clear discharge",
-                              systemImage: "checkmark.shield.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
-                    .disabled(clearing)
-                }
+        VStack(spacing: 0) {
+            header
+            Divider()
+            HStack(spacing: 0) {
+                actionRail
+                    .frame(width: 430)
+                Divider()
+                reportPane
             }
-            .padding(24)
-            .frame(maxWidth: 760)
         }
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemGroupedBackground))
-        .tint(.teal)
+        .background(RelayTheme.paper)
+        .tint(RelayTheme.brand)
         .onAppear {
             if selectedRun == nil, let initialRun {
                 selectedRun = initialRun
@@ -623,10 +560,253 @@ struct CareTeamView: View {
         }
     }
 
+    // MARK: header
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            if let onBack {
+                Button { onBack() } label: {
+                    Label("Chart", systemImage: "chevron.left")
+                        .font(.subheadline.bold())
+                }
+                .buttonStyle(.bordered)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Care-team review")
+                    .font(.title3.bold())
+                    .foregroundStyle(RelayTheme.ink)
+                Text("walk-through \(runId ?? "…") · drafted by Relay, decided by clinicians")
+                    .font(.caption)
+                    .foregroundStyle(RelayTheme.inkSecondary)
+            }
+            Spacer()
+            if !approvals.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView(value: Double(approvedCount),
+                                 total: Double(max(approvals.count, 1)))
+                        .frame(width: 90)
+                    Text("\(approvedCount)/\(approvals.count) approved")
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(RelayTheme.inkSecondary)
+                }
+            }
+            Menu {
+                Button("Latest walkthrough") { selectedRun = nil; refresh() }
+                ForEach(sampleRuns, id: \.self) { r in
+                    Button(r) { selectedRun = r; refresh() }
+                }
+            } label: {
+                Label(selectedRun ?? "latest", systemImage: "clock.arrow.circlepath")
+                    .font(.footnote.monospaced())
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.white)
+    }
+
+    // MARK: left rail — what the clinician acts on
+
+    private var actionRail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if approvals.isEmpty {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Report finalizing — findings land as they're graded. "
+                             + "Pick a run from the menu to review a completed one now.")
+                            .font(.footnote)
+                            .foregroundStyle(RelayTheme.inkSecondary)
+                    }
+                    .padding(14)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                if blocked > 0 {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.octagon.fill")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("The discharge plan will not work as written")
+                                .font(.subheadline.bold())
+                            Text("\(blocked) care-plan obligation(s) blocked by the home")
+                                .font(.caption)
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RelayTheme.red, in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                if !approvals.isEmpty {
+                    sectionCaption("Actions drafted by Relay")
+                }
+                ForEach(approvals) { a in
+                    approvalCard(a)
+                }
+
+                if allApproved {
+                    Button {
+                        clearing = true
+                        BackendClient.shared.clearDischarge(run: selectedRun) {
+                            onCleared()
+                        }
+                    } label: {
+                        Label(clearing ? "Updating chart…"
+                              : "Remediations verified — clear discharge",
+                              systemImage: "checkmark.shield.fill")
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(RelayTheme.green)
+                    .disabled(clearing)
+                }
+
+                if let runId {
+                    sectionCaption("Floor plan · LiDAR")
+                    AsyncImage(url: floorplanURL(runId)) { ph in
+                        if case .success(let img) = ph {
+                            img.resizable().scaledToFit()
+                        } else {
+                            RelayTheme.paper2.frame(height: 120)
+                        }
+                    }
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(RelayTheme.hairline))
+                    .id("fp-\(runId)")
+                }
+
+                if nFrames > 0, let runId {
+                    sectionCaption("Walkthrough evidence · \(nFrames) frames")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(frameIndices, id: \.self) { i in
+                                AsyncImage(url: frameURL(runId, i)) { ph in
+                                    if case .success(let img) = ph {
+                                        img.resizable().scaledToFill()
+                                    } else {
+                                        RelayTheme.paper2
+                                    }
+                                }
+                                .frame(width: 128, height: 96)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+                    }
+                    .id("film-\(runId)")
+                }
+            }
+            .padding(16)
+        }
+        .background(RelayTheme.paper2)
+    }
+
+    private func sectionCaption(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption2.bold())
+            .kerning(0.8)
+            .foregroundStyle(RelayTheme.inkSecondary)
+            .padding(.top, 4)
+    }
+
+    private func kindColor(_ kind: String) -> Color {
+        switch kind {
+        case "clinical": return RelayTheme.red
+        case "operational": return RelayTheme.amber
+        case "dme": return RelayTheme.blueDeep
+        default: return RelayTheme.inkSecondary
+        }
+    }
+
+    private func approvalCard(_ a: Approval) -> some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(kindColor(a.kind))
+                .frame(width: 4)
+                .padding(.vertical, 10)
+                .padding(.leading, 8)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(a.kind.uppercased())
+                        .font(.caption2.bold())
+                        .kerning(0.6)
+                        .foregroundStyle(kindColor(a.kind))
+                    Spacer()
+                    if a.status == "approved" {
+                        Label("Approved", systemImage: "checkmark.circle.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(RelayTheme.green)
+                    } else {
+                        Button("Approve") { approve(a) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(RelayTheme.green)
+                    }
+                }
+                Text(a.title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(RelayTheme.ink)
+                Text(a.detail)
+                    .font(.caption)
+                    .foregroundStyle(RelayTheme.inkSecondary)
+                    .lineSpacing(1.5)
+            }
+            .padding(12)
+        }
+        .background(.white, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(RelayTheme.hairline))
+    }
+
+    // MARK: right pane — the full report, embedded
+
+    @ViewBuilder
+    private var reportPane: some View {
+        if let runId {
+            ReportWebView(url: reportURL(runId))
+                .id(runId)
+        } else {
+            VStack {
+                Spacer()
+                ProgressView()
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: urls + data
+
+    private var frameIndices: [Int] {
+        let step = max(1, nFrames / 12)
+        return Array(stride(from: 0, to: nFrames, by: step))
+    }
+
+    private func reportURL(_ run: String) -> URL {
+        URL(string: "report?run=\(run)&embed=1",
+            relativeTo: BackendClient.shared.baseURL)!
+    }
+
+    private func floorplanURL(_ run: String) -> URL {
+        URL(string: "floorplan?run=\(run)",
+            relativeTo: BackendClient.shared.baseURL)!
+    }
+
+    private func frameURL(_ run: String, _ i: Int) -> URL {
+        URL(string: "frames/\(run)/\(i).jpg",
+            relativeTo: BackendClient.shared.baseURL)!
+    }
+
     private func refresh() {
         BackendClient.shared.fetchApprovals(run: selectedRun) { obj in
             runId = obj["run_id"] as? String
             blocked = obj["n_blocked"] as? Int ?? 0
+            nFrames = obj["n_frames"] as? Int ?? 0
             approvals = (obj["approvals"] as? [[String: Any]] ?? []).map {
                 Approval(id: $0["id"] as? String ?? "",
                          kind: $0["kind"] as? String ?? "",
@@ -663,7 +843,7 @@ struct DischargedView: View {
                 .foregroundStyle(.secondary)
             Text("Monica is cleared to go home Friday.")
                 .font(.title2.bold())
-                .foregroundStyle(.teal)
+                .foregroundStyle(RelayTheme.blueDeep)
             Text("Abridge captures the encounter. Relay carries the care forward.")
                 .font(.footnote.italic())
                 .foregroundStyle(.secondary)
@@ -676,7 +856,7 @@ struct DischargedView: View {
                     .padding(.horizontal, 20).padding(.vertical, 10)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.teal)
+            .tint(RelayTheme.brand)
             .padding(.top, 8)
             Spacer()
         }

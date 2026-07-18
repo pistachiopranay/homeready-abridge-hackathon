@@ -46,7 +46,7 @@ struct PastRunsView: View {
                         }
                         if r.hasFloorplan {
                             Image(systemName: "square.split.bottomrightquarter")
-                                .foregroundStyle(.teal)
+                                .foregroundStyle(RelayTheme.blueDeep)
                         }
                     }
                 }

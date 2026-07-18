@@ -102,7 +102,7 @@ struct ContentView: View {
 
             Image(systemName: "house.and.flag.fill")
                 .font(.system(size: 54))
-                .foregroundStyle(.teal)
+                .foregroundStyle(RelayTheme.brand)
             Text("Relay")
                 .font(.system(size: 46, weight: .bold, design: .rounded))
             Text("Care doesn't end at the encounter.")
@@ -119,7 +119,7 @@ struct ContentView: View {
                     .padding(.horizontal, 36).padding(.vertical, 16)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.teal)
+            .tint(RelayTheme.brand)
 
             HStack(spacing: 12) {
                 Button {
@@ -184,6 +184,8 @@ struct ContentView: View {
                 .opacity(0.5)
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RelayTheme.paper)
     }
 
     // MARK: Walkthrough (Act 3)
