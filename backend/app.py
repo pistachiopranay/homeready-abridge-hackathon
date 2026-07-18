@@ -68,12 +68,16 @@ async def roomplan(req: Request):
     room = body.get("room", "room")
     for m in measurements:
         run.add_measurement(m)
-        if m.get("kind") in ("door", "opening"):
-            run.add_event(f"Measured: {m['label']} is {m['text']}")
-            article = "the main doorway" if room == "entry" else f"the {room} {m['kind']}"
+        if m.get("kind") not in ("door", "opening"):
+            continue
+        run.add_event(f"Measured: {m['label']} is {m['text']}")
+        # Only a FAILING door is worth the caregiver's attention — clearing
+        # doors would stack noise cards (RoomPlan finds many openings per room)
+        if m.get("walker_clears") is False:
             run.add_confirmation(
-                f"I measured a {m['kind']} at {m['width_in']}in — is this {article} "
-                f"Monica uses?", source="lidar")
+                f"This {m['kind']} measured {m['width_in']}in — too narrow for "
+                f"Monica's 28in walker. Does she need to get through it "
+                f"day-to-day?", source="lidar")
     return {"added": len(measurements), "measurements": measurements}
 
 
@@ -195,6 +199,45 @@ def demo_status():
     from demo import player
     return {"running": player.running, "frame": player.frame_i,
             "total": player.total}
+
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    """Care-team entry point: every walkthrough run, newest first."""
+    import json as _json
+    from config import RUNS_DIR
+    rows = ""
+    for d in sorted(RUNS_DIR.iterdir(), reverse=True):
+        rj = d / "run.json"
+        if not rj.exists():
+            continue
+        try:
+            data = _json.loads(rj.read_text())
+        except Exception:
+            continue
+        findings = data.get("findings", [])
+        n_crit = sum(1 for f in findings if f.get("severity") == "critical")
+        n_blocked = sum(1 for o in data.get("obligations", [])
+                        if o.get("status") == "blocked")
+        badge = ("<span style='color:#c0392b;font-weight:700'>PLAN BLOCKED</span>"
+                 if n_blocked else "")
+        rows += (f"<tr><td><a href='/report?run={d.name}'>{d.name}</a></td>"
+                 f"<td>{len(data.get('frames', []))}</td>"
+                 f"<td>{len(findings)} ({n_crit} critical)</td>"
+                 f"<td>{len(data.get('escalations', []))}</td><td>{badge}</td></tr>")
+    live = state.current()
+    return f"""<!doctype html><html><head><meta charset="utf-8"><title>Relay — runs</title>
+<style>body{{font-family:-apple-system,sans-serif;max-width:760px;margin:40px auto;color:#1c2833}}
+h1{{font-size:22px}} table{{width:100%;border-collapse:collapse}}
+td,th{{padding:8px 12px;border-bottom:1px solid #eaeded;font-size:14px;text-align:left}}
+a{{color:#2874a6}} .live{{background:#eafaf1;padding:10px 14px;border-radius:8px}}</style>
+</head><body>
+<h1>Relay · walkthrough runs</h1>
+<p class="live">Live session: <b>{live.id}</b> — {len(live.frames)} frames,
+{len(live.findings)} findings so far · <a href="/report">view live report</a></p>
+<table><tr><th>run</th><th>frames</th><th>findings</th><th>escalations</th><th></th></tr>
+{rows or '<tr><td colspan=5>no finished runs yet</td></tr>'}</table>
+</body></html>"""
 
 
 @app.get("/healthz")

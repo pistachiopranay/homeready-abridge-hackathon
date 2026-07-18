@@ -25,6 +25,12 @@ def ingest_roomplan(payload: dict) -> list[dict]:
             if not w_m:
                 continue
             w_in = round(w_m * M_TO_IN, 1)
+            # RoomPlan labels big wall spans as "doors"; a real door is < ~60in
+            if w_in > 60:
+                out.append({"label": f"{room} wide opening", "room": room,
+                            "kind": "span", "width_in": w_in,
+                            "text": f"{w_in}in open span — not a doorway"})
+                continue
             clears = w_in >= WALKER_WIDTH_IN + 1  # 1in margin for hands/knuckles
             label = f"{room} {kind[:-1]} width"
             if clears:
