@@ -57,6 +57,16 @@ final class BackendClient {
         post("confirmations/\(id)/resolve", json: ["answer": answer, "by": "tap"])
     }
 
+    func fetchState(completion: @escaping ([String: Any]) -> Void) {
+        let url = baseURL.appendingPathComponent("state")
+        session.dataTask(with: url) { data, _, _ in
+            let obj = data.flatMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+            } ?? [:]
+            DispatchQueue.main.async { completion(obj) }
+        }.resume()
+    }
+
     func finishWalkthrough(completion: @escaping (String?) -> Void) {
         post("walkthrough/finish", json: [:]) { obj in
             completion(obj?["report_url"] as? String)

@@ -46,7 +46,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Text("Monica's apartment · she comes home Friday")
                     .font(.headline)
-                Text("Walk room to room and just talk to Steady —\nit will guide you the whole way.")
+                Text("Walk room to room and just talk to Riley —\nthey'll guide you the whole way.")
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
@@ -114,6 +114,16 @@ struct ContentView: View {
                     .padding(.top, 14)
                 Spacer()
             }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    DebugOverlay()
+                }
+                Spacer()
+            }
+            .padding(.top, 14)
+            .padding(.trailing, 14)
 
             VStack(spacing: 12) {
                 if !voice.lastAgentLine.isEmpty {
