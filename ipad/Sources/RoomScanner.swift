@@ -31,6 +31,7 @@ final class RoomScanner: NSObject, ObservableObject, RoomCaptureViewDelegate {
         currentRoom = room
         let config = RoomCaptureSession.Configuration()
         captureView.captureSession.run(configuration: config)
+        LiveDetector.shared.start(session: captureView.captureSession)
         isScanning = true
         BackendClient.shared.send(event: "Caregiver started scanning the \(room).",
                                   room: room)
@@ -43,6 +44,7 @@ final class RoomScanner: NSObject, ObservableObject, RoomCaptureViewDelegate {
     func finishRoom() {
         frameTimer?.invalidate()
         frameTimer = nil
+        LiveDetector.shared.stop()
         captureView.captureSession.stop()   // triggers processing → didPresent
         isScanning = false
     }
