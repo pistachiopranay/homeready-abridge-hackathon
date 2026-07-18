@@ -1,73 +1,106 @@
-# Relay — care doesn't end at the encounter
+# HomeReady — verify the home before discharge
 
-**Relay is a chart-aware agent that carries the clinical care plan into the patient's real world** — it derives post-encounter obligations from the encounter documentation, gathers evidence (voice, vision, LiDAR), verifies what's possible, and escalates what isn't. First workflow: post-discharge home readiness.
+> *Monica's clinical team believes she may be ready to go home. HomeReady answers
+> the question her chart cannot: **is her home ready for her?***
 
-**Abridge Hackathon 2026.** Falls after hospital discharge are a leading driver of
-readmissions: patients leave rehab deconditioned, into homes full of hazards nobody
-has assessed. Home-safety evaluations exist (CDC STEADI, HSSAT) — but they require
-a clinician home visit that usually never happens.
+Built solo in one day at the **Abridge Hackathon** (July 18, 2026, Shack15 SF).
 
-**Steady** turns any caregiver with an iPad into a clinical-grade home-safety
-assessment, conducted *by an agent*:
+Every discharge plan ends with some version of *"discharge home once safe"* — but
+nobody can verify "safe" from the chart. Falls after discharge are a leading
+driver of readmissions; home-safety evaluations (CDC STEADI, HSSAT) exist but
+need a clinician home visit that rarely happens. HomeReady turns any caregiver
+with a LiDAR iPad into that visit, run by an agent — and closes the loop back
+into the chart before the patient leaves.
 
-1. A caregiver walks the home with an iPad Pro. **RoomPlan (LiDAR)** measures rooms
-   and doorways; camera frames stream to the backend.
-2. **Three-speed perception**: on-device spatial scanning at 0 ms; a Claude Haiku
-   fast-pass per frame (~1.3 s) turns hazards into instant voice callouts; a Claude
-   Sonnet deep-pass batches frames into STEADI/HSSAT-graded findings.
-3. A **full-duplex voice agent** (ElevenLabs, custom-LLM → this backend) guides the
-   route, reacts to what the camera sees, and asks chart-aware follow-ups the
-   camera can't answer — grounded in the patient's FHIR record.
-4. Output: a **clinician report** — graded findings with photos, LiDAR measurements
-   ("bathroom door is 27 in; her walker is 28 in"), patient-reported context, drafted
-   DME orders with HCPCS codes + Medicare coverage flags, care-team routing, and a
-   draft FHIR bundle (Observations + ServiceRequests). Drafted, never auto-sent.
+## The demo story (chart → home → chart)
 
-Demo patient: **Monica Hilpert, 76F** (synthetic, from the Abridge
-`synthetic-ambient-fhir-25` dataset) — osteoporosis, deconditioned after a week in
-hospital + SNF rehab, lives alone, going home Friday. For her, a fall is a fracture.
-Every severity grade in the report is argued *for her specifically*.
+1. **Clinician portal** — Monica Hilpert, 76F (synthetic, from Abridge's
+   `synthetic-ambient-fhir-25` dataset): osteoporosis, deconditioned after a
+   week in hospital + SNF rehab, lives alone, uses a 28-inch walker, going home
+   Friday. Her encounter note's discharge-planning line is highlighted — *"formal
+   pre-discharge assessment of … home setup"* — and handed to HomeReady.
+2. **Patient side** — Monica gets a message from **Riley**, the voice agent on
+   her care team. Anyone at her home starts the walkthrough on any compatible
+   device.
+3. **The walkthrough** — full-duplex voice (Riley guides room to room, in
+   *gathering mode*: neutral questions only, no hazard talk to laypeople), while
+   three perception layers run: RoomPlan LiDAR (rooms, doorways, furniture — and
+   live AR boxes on screen with YOLOv3 on the Neural Engine), a Claude Haiku
+   fast-pass per camera frame (~1.3s) feeding Riley live scan events, and a
+   Claude Sonnet deep-pass grading STEADI/HSSAT findings in the background.
+   On-screen confirmation cards resolve by tap **or voice**.
+4. **The verdict** — HomeReady scores every obligation it derived from the
+   encounter note against walkthrough evidence. The killer finding is a
+   measurement, not a vibe: **"The bathroom doorway is 27.6 in. Monica's walker
+   is 28. The discharge plan as written will not work."**
+5. **Care-team review** — a split-view station: drafted actions (clinical /
+   operational / DME, each with owner + deadline + evidence) awaiting clinician
+   approval, floor plans with the failing door drawn in red, the photo evidence
+   filmstrip, and the full graded report. Approve → remediation verified →
+   **chart updates: "VERIFIED, cleared for discharge."**
+
+Nothing downstream of the camera is faked: every model call in the demo happens
+live. There is deliberately **no fabricated risk score** anywhere — findings are
+graded against CDC STEADI / HSSAT items with per-patient rationale, and all
+orders/escalations are **drafted, never auto-sent**.
 
 ## Architecture
 
 ```
-iPad Pro (dumb client)                     Mac backend (all intelligence)
-┌─────────────────────────┐               ┌──────────────────────────────────┐
-│ RoomPlan scan (LiDAR)   │─ doors/area ─▶│ /roomplan  walker-clearance math │
-│ ARSession frames (2.5s) │─ JPEG 512px ─▶│ /frame     Haiku fast-pass ──┐   │
-│ ElevenLabs voice SDK    │               │            Sonnet deep-pass  │   │
-└───────────┬─────────────┘               │ events + measurements ◀──────┘   │
-            │ WebRTC                      │      ▼                           │
-   ElevenLabs cloud ── custom LLM ──────▶ │ /v1/chat/completions (SSE brain) │
-            (via ngrok)                   │ /report    STEADI HTML + FHIR    │
-                                          └──────────────────────────────────┘
+iPad (dumb client)                        Mac backend (all intelligence)
+┌────────────────────────────┐           ┌────────────────────────────────────┐
+│ RoomPlan LiDAR scan        │─ geometry ▶ /roomplan  walker-clearance math,  │
+│  + live AR detection boxes │           │            floor-plan rendering    │
+│ ARSession frames (2.5s)    │─ JPEG ────▶ /frame     Haiku fast-pass ──┐     │
+│ ElevenLabs voice (WebRTC)  │           │            Sonnet deep-pass  │     │
+│ confirmation cards         │           │  events + measurements ◀─────┘     │
+└──────────┬─────────────────┘           │      ▼                             │
+           │                             │ /v1/chat/completions  (SSE brain)  │
+  ElevenLabs cloud ─ custom LLM ────────▶│ obligations engine ◀─ encounter    │
+           (via ngrok)                   │ escalation router     note + AVS   │
+                                         │ /report · /approvals · FHIR drafts │
+                                         └────────────────────────────────────┘
 ```
 
-- **Detection** by Claude vision · **grading** by CDC STEADI/HSSAT · **measurements**
-  by LiDAR — no fabricated risk scores anywhere.
-- The voice agent's LLM *is* the backend: one brain sees the conversation, the
-  camera events, and the chart.
+- **One brain**: the ElevenLabs agent's LLM *is* this backend — the same model
+  that sees the camera events and the chart writes Riley's next sentence.
+- **Obligations engine**: derives post-encounter obligations from the encounter
+  note + after-visit summary (the Abridge artifacts), then scores each
+  `verified / at_risk / blocked / unverified` against walkthrough evidence.
+- **Escalation router**: deterministic rules → routed messages (expected /
+  observed / why / attempted / next action + owner + deadline).
+- **FHIR write-back (draft)**: Observations (hazards), ServiceRequests (DME with
+  HCPCS + Medicare coverage flags), Tasks (escalations), all tagged
+  `DRAFT — requires clinician review`.
+
+**Abridge captures the encounter. HomeReady verifies the home.**
 
 ## Run it
 
 ```bash
 # backend (Mac)
 python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
-cp .env.example .env   # add ANTHROPIC_API_KEY (+ ELEVENLABS_API_KEY for voice)
+cp .env.example .env          # add ANTHROPIC_API_KEY (+ ELEVENLABS_API_KEY)
 cd backend && ../.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
 
-# voice plumbing (optional): ngrok http 8000, then point an ElevenLabs
-# conversational agent's custom-LLM URL at https://<ngrok>/v1
+# voice plumbing: ngrok http 8000, then point an ElevenLabs conversational
+# agent's custom-LLM URL at https://<ngrok>/v1  (SSE streaming)
 
-# iPad app
-cd ipad && xcodegen generate && open Walkthrough.xcodeproj  # build to iPad Pro w/ LiDAR
+# iPad app (iPad Pro with LiDAR)
+cd ipad && ./fetch-models.sh   # on-device YOLOv3 (59 MB, not committed)
+xcodegen generate && open Walkthrough.xcodeproj
+
+# demo mode (no home needed): feed any walkthrough video through the real
+# pipeline — backend/prepare_demo.py <video>, then "replay" in the app
 ```
 
-Open `http://<mac>:8000/report` for the live report; `/report/fhir` for the bundle.
+Care-team surfaces: `http://<mac>:8000/` (run index), `/report`, `/report/fhir`.
 
 ## Built with
 
-FastAPI · Claude (Haiku 4.5 fast-pass, Sonnet 5 deep-pass + brain) · Apple RoomPlan ·
-ElevenLabs Conversational AI · FHIR R4 · Abridge synthetic-ambient-fhir-25 dataset.
+Claude (Haiku 4.5 fast-pass · Sonnet 5 deep-pass + voice brain) · Apple RoomPlan
+& Core ML (YOLOv3) · ElevenLabs Conversational AI · FastAPI · FHIR R4 · CDC
+STEADI / HSSAT · Abridge `synthetic-ambient-fhir-25` dataset.
 
-Built solo during the hackathon, July 18, 2026. Synthetic data only — not a medical device.
+Synthetic data only — not a medical device. All patient data in this repo and
+demo is fully synthetic (Synthea).
