@@ -10,16 +10,23 @@ struct WalkthroughApp: App {
 
 private let ROOMS = ["entry", "living room", "kitchen", "hallway", "bathroom", "bedroom"]
 
+enum FlowStage {
+    case home, portal, patientMessage, thanks, careTeam, discharged
+}
+
 struct ContentView: View {
     @StateObject private var voice = VoiceManager.shared
     @StateObject private var scanner = RoomScanner.shared
 
     @State private var backendHost = "10.1.63.110:8000"
+    @State private var stage: FlowStage = .home
+    @State private var inGuidedFlow = false
     @State private var walking = false
     @State private var demoMode = false
     @State private var demoPlayer: AVPlayer?
     @State private var room = "entry"
     @State private var reportURL: String?
+    @State private var reportReady = false
     @State private var finishing = false
     @State private var showPastRuns = false
 
@@ -30,13 +37,56 @@ struct ContentView: View {
         }
     }
 
+    private func startLive() {
+        applyHost()
+        BackendClient.shared.startWalkthrough()
+        demoMode = false
+        walking = true
+        reportURL = nil
+        Task { await voice.start() }
+        scanner.startRoom(named: room)
+    }
+
+    private func startDemoReplay() {
+        applyHost()
+        BackendClient.shared.startDemo()
+        demoMode = true
+        walking = true
+        reportURL = nil
+        let player = AVPlayer(url: BackendClient.shared.demoVideoURL)
+        player.isMuted = true
+        demoPlayer = player
+        player.play()
+        Task { await voice.start() }
+    }
+
     var body: some View {
         if walking {
             walkthroughView
         } else {
-            startView
+            switch stage {
+            case .home:
+                startView
+            case .portal:
+                ClinicianPortalView { stage = .patientMessage }
+            case .patientMessage:
+                PatientMessageView(
+                    onStartLive: { inGuidedFlow = true; startLive() },
+                    onStartDemo: { inGuidedFlow = true; startDemoReplay() })
+            case .thanks:
+                ThanksView(reportReady: reportReady) { stage = .careTeam }
+            case .careTeam:
+                CareTeamView { stage = .discharged }
+            case .discharged:
+                DischargedView {
+                    stage = .home
+                    inGuidedFlow = false
+                }
+            }
         }
     }
+
+    // MARK: Home
 
     private var startView: some View {
         VStack(spacing: 20) {
@@ -51,70 +101,55 @@ struct ContentView: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
 
-            VStack(spacing: 4) {
-                Text("Today's walkthrough")
-                    .font(.caption.smallCaps())
-                    .foregroundStyle(.secondary)
-                Text("Monica's apartment · she comes home Friday")
-                    .font(.headline)
-                Text("Walk room to room and just talk to Riley —\nthey'll guide you the whole way.")
-                    .font(.subheadline)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(18)
-            .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
-
             Button {
                 applyHost()
-                BackendClient.shared.startWalkthrough()
-                demoMode = false
-                walking = true
-                reportURL = nil
-                Task { await voice.start() }
-                scanner.startRoom(named: room)
+                stage = .portal
             } label: {
-                Label("Start walkthrough", systemImage: "figure.walk")
+                Label("Start demo — from the clinician portal",
+                      systemImage: "play.circle.fill")
                     .font(.title.bold())
-                    .padding(.horizontal, 44).padding(.vertical, 18)
+                    .padding(.horizontal, 36).padding(.vertical, 16)
             }
             .buttonStyle(.borderedProminent)
             .tint(.teal)
 
-            Button {
-                applyHost()
-                BackendClient.shared.startDemo()
-                demoMode = true
-                walking = true
-                reportURL = nil
-                let player = AVPlayer(url: BackendClient.shared.demoVideoURL)
-                player.isMuted = true
-                demoPlayer = player
-                player.play()
-                Task { await voice.start() }
-            } label: {
-                Label("Demo mode — replay recorded walkthrough",
-                      systemImage: "play.rectangle")
-                    .font(.subheadline)
-            }
-            .buttonStyle(.bordered)
-            .tint(.secondary)
+            HStack(spacing: 12) {
+                Button {
+                    inGuidedFlow = false
+                    startLive()
+                } label: {
+                    Label("Walk-through only", systemImage: "figure.walk")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
 
-            Button {
-                applyHost()
-                showPastRuns = true
-            } label: {
-                Label("Past walkthroughs & floor plans",
-                      systemImage: "square.split.bottomrightquarter")
-                    .font(.subheadline)
+                Button {
+                    inGuidedFlow = false
+                    startDemoReplay()
+                } label: {
+                    Label("Replay recording", systemImage: "play.rectangle")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+
+                Button {
+                    applyHost()
+                    showPastRuns = true
+                } label: {
+                    Label("Past walkthroughs",
+                          systemImage: "square.split.bottomrightquarter")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+                .sheet(isPresented: $showPastRuns) { PastRunsView() }
             }
-            .buttonStyle(.bordered)
-            .tint(.secondary)
-            .sheet(isPresented: $showPastRuns) { PastRunsView() }
 
             if let reportURL {
                 VStack(spacing: 6) {
-                    Label("Walkthrough complete — report sent to Monica's care team",
+                    Label("Walkthrough complete — report ready for the care team",
                           systemImage: "checkmark.seal.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
@@ -132,7 +167,6 @@ struct ContentView: View {
 
             Spacer()
 
-            // Setup detail, out of the caregiver's way
             TextField("backend host (ip:port or full URL)", text: $backendHost)
                 .textFieldStyle(.roundedBorder)
                 .font(.footnote.monospaced())
@@ -143,6 +177,8 @@ struct ContentView: View {
         }
         .padding()
     }
+
+    // MARK: Walkthrough (Act 3)
 
     private var walkthroughView: some View {
         ZStack(alignment: .bottom) {
@@ -180,10 +216,11 @@ struct ContentView: View {
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
                 }
                 if !scanner.lastStatus.isEmpty {
-                    Text(scanner.lastStatus)
+                    Label(scanner.lastStatus, systemImage: "ruler")
                         .font(.footnote.monospaced())
                         .padding(8)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                        .transition(.scale.combined(with: .opacity))
                 }
 
                 HStack(spacing: 10) {
@@ -204,7 +241,7 @@ struct ContentView: View {
                         Circle()
                             .fill(voice.isConnected ? .green : .red)
                             .frame(width: 10, height: 10)
-                        Text(voice.isConnected ? "voice live" : "voice off")
+                        Text(voice.isConnected ? "Riley live" : "voice off")
                             .font(.footnote)
                     }
                     .padding(8)
@@ -214,7 +251,8 @@ struct ContentView: View {
                         endWalkthrough()
                     } label: {
                         finishing ? Label("Finishing…", systemImage: "hourglass")
-                                  : Label("End walkthrough", systemImage: "checkmark.circle.fill")
+                                  : Label("End walkthrough",
+                                          systemImage: "checkmark.circle.fill")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(finishing)
@@ -222,6 +260,7 @@ struct ContentView: View {
                 .padding(.bottom, 24)
             }
             .padding(.horizontal)
+            .animation(.spring(duration: 0.4), value: scanner.lastStatus)
         }
     }
 
@@ -235,12 +274,22 @@ struct ContentView: View {
             scanner.finishRoom()
         }
         Task { await voice.stop() }
+
+        if inGuidedFlow {
+            reportReady = false
+            walking = false
+            stage = .thanks
+        }
         // Give the room-scan result a moment to post before the finish drain
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             BackendClient.shared.finishWalkthrough { url in
                 reportURL = url
                 finishing = false
-                walking = false
+                if inGuidedFlow {
+                    reportReady = true
+                } else {
+                    walking = false
+                }
             }
         }
     }

@@ -1,0 +1,105 @@
+"""The demo journey around the walkthrough: clinician handoff → patient message
+→ (walkthrough) → approval queue → remediation → cleared for discharge."""
+
+import json
+import uuid
+
+from config import RUNS_DIR
+from patient import record
+from state import Run, load_run
+
+HANDOFF_MESSAGE = (
+    "Hi — this is Riley with Monica's care team at the rehab facility. Before "
+    "Monica comes home Friday, her care team asked for a quick walk-through of "
+    "her apartment to make sure everything is ready for her. Anyone at the home "
+    "can do it with an iPad — it takes about ten minutes and I'll guide you the "
+    "whole way. If nobody's available, we can send someone instead."
+)
+
+# The documented plan, as it appears in the encounter note (rendered in the
+# clinician portal above the handoff button)
+PLAN_ITEMS = [
+    "PT for safe transfers, standing tolerance, gait, and strengthening",
+    "OT for dressing, bathing safety, and daily activities",
+    "Pain management with monitoring for sedation, confusion, and unsteadiness",
+    "Dietitian support for soft, protein- and calcium-forward meals",
+    "Social work to arrange home support before discharge",
+    "Formal pre-discharge assessment: mobility, medication management, "
+    "meal management, home setup",
+    "Discharge home once safe",
+]
+
+
+def patient_chart() -> dict:
+    rec = record()
+    return {
+        "name": "Monica Hilpert",
+        "age": 76,
+        "sex": "F",
+        "visit_title": rec["metadata"]["visit_title"],
+        "note": rec["note"],
+        "after_visit_summary": rec["after_visit_summary"],
+        "plan_items": PLAN_ITEMS,
+        "handoff_message": HANDOFF_MESSAGE,
+    }
+
+
+def latest_finished_run() -> Run | None:
+    for d in sorted(RUNS_DIR.iterdir(), reverse=True):
+        if (d / "run.json").exists():
+            run = load_run(d.name)
+            if run is not None:
+                return run
+    return None
+
+
+def build_approvals(run: Run) -> list[dict]:
+    """Clinician approval queue from the run's drafted actions + escalations."""
+    from fhir_writeback import dme_requests
+
+    approvals = []
+    with run.lock:
+        hazards = [f for f in run.findings if f.get("hazard")]
+        escalations = list(run.escalations)
+
+    for e in escalations:
+        if e["level"] in ("clinical", "operational"):
+            approvals.append({
+                "id": uuid.uuid4().hex[:8], "kind": e["level"],
+                "title": e["next_action"],
+                "detail": f"{e['observed']} → route to {e['owner']}, "
+                          f"due {e['deadline']}",
+                "status": "pending",
+            })
+    for sr in dme_requests(hazards):
+        code = sr["code"]["coding"][0]["code"] if sr["code"]["coding"] else "—"
+        approvals.append({
+            "id": uuid.uuid4().hex[:8], "kind": "dme",
+            "title": f"Order: {sr['code']['text']} (HCPCS {code})",
+            "detail": f"Reason: {sr['reasonCode'][0]['text']}. "
+                      f"{sr['note'][0]['text']}",
+            "status": "pending",
+        })
+    return approvals
+
+
+def approve(run: Run, approval_id: str) -> dict | None:
+    with run.lock:
+        hit = None
+        for a in run.approvals:
+            if a["id"] == approval_id and a["status"] == "pending":
+                a["status"] = "approved"
+                hit = dict(a)
+        if hit and all(a["status"] == "approved" for a in run.approvals):
+            run.discharge_state = "approved"
+    if hit:
+        run.save()
+    return hit
+
+
+def clear_for_discharge(run: Run) -> dict:
+    """Remediations confirmed → chart updates → cleared."""
+    with run.lock:
+        run.discharge_state = "cleared"
+    run.save()
+    return {"discharge_state": "cleared"}

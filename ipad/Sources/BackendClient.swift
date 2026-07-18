@@ -67,6 +67,33 @@ final class BackendClient {
         }.resume()
     }
 
+    func fetchChart(completion: @escaping ([String: Any]) -> Void) {
+        getJSON("patient/chart", completion: completion)
+    }
+
+    func fetchApprovals(completion: @escaping ([String: Any]) -> Void) {
+        getJSON("approvals", completion: completion)
+    }
+
+    func approve(id: String, completion: @escaping () -> Void) {
+        post("approvals/\(id)/approve", json: [:]) { _ in completion() }
+    }
+
+    func clearDischarge(completion: @escaping () -> Void) {
+        post("discharge/clear", json: [:]) { _ in completion() }
+    }
+
+    private func getJSON(_ path: String,
+                         completion: @escaping ([String: Any]) -> Void) {
+        let url = baseURL.appendingPathComponent(path)
+        session.dataTask(with: url) { data, _, _ in
+            let obj = data.flatMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+            } ?? [:]
+            DispatchQueue.main.async { completion(obj) }
+        }.resume()
+    }
+
     func startDemo() { post("demo/start", json: [:]) }
     func stopDemo() { post("demo/stop", json: [:]) }
     var demoVideoURL: URL { baseURL.appendingPathComponent("demo/video") }

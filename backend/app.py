@@ -75,13 +75,12 @@ async def roomplan(req: Request):
         if m.get("kind") not in ("door", "opening"):
             continue
         run.add_event(f"Measured: {m['label']} is {m['text']}")
-        # Only a FAILING door is worth the caregiver's attention — clearing
-        # doors would stack noise cards (RoomPlan finds many openings per room)
+        # Only a FAILING door is worth a card — but phrased neutrally; the
+        # walker verdict is for the care team, not the caregiver mid-scan
         if m.get("walker_clears") is False:
             run.add_confirmation(
-                f"This {m['kind']} measured {m['width_in']}in — too narrow for "
-                f"Monica's 28in walker. Does she need to get through it "
-                f"day-to-day?", source="lidar")
+                f"I measured this {m['kind']} at {m['width_in']}in — does Monica "
+                f"pass through it day-to-day?", source="lidar")
     return {"added": len(measurements), "measurements": measurements}
 
 
@@ -128,10 +127,12 @@ def walkthrough_finish():
             _worker = None
     # Close the loop: score care-plan obligations against evidence, route exceptions
     from escalations import build_escalations
+    from journey import build_approvals
     from obligations import score_obligations
     try:
         run.obligations = score_obligations(run)
         run.escalations = build_escalations(run, run.obligations)
+        run.approvals = build_approvals(run)
     except Exception as e:
         print(f"[finish] obligation scoring failed (report still renders): {e}")
     run.save()
@@ -203,6 +204,45 @@ def demo_status():
     from demo import player
     return {"running": player.running, "frame": player.frame_i,
             "total": player.total}
+
+
+@app.get("/patient/chart")
+def get_patient_chart():
+    from journey import patient_chart
+    return patient_chart()
+
+
+@app.get("/approvals")
+def get_approvals(run: str | None = None):
+    from journey import latest_finished_run
+    r = state.load_run(run) if run else latest_finished_run()
+    if r is None:
+        return {"run_id": None, "approvals": [], "discharge_state": "in_review"}
+    return {"run_id": r.id, "approvals": r.approvals,
+            "discharge_state": r.discharge_state,
+            "n_blocked": sum(1 for o in r.obligations
+                             if o.get("status") == "blocked")}
+
+
+@app.post("/approvals/{aid}/approve")
+async def post_approve(aid: str, req: Request):
+    from journey import approve, latest_finished_run
+    body = await req.json() if int(req.headers.get("content-length") or 0) else {}
+    r = state.load_run(body.get("run")) if body.get("run") else latest_finished_run()
+    if r is None:
+        return JSONResponse({"error": "no finished run"}, status_code=404)
+    item = approve(r, aid)
+    return {"approved": item is not None, "discharge_state": r.discharge_state}
+
+
+@app.post("/discharge/clear")
+async def post_discharge_clear(req: Request):
+    from journey import clear_for_discharge, latest_finished_run
+    body = await req.json() if int(req.headers.get("content-length") or 0) else {}
+    r = state.load_run(body.get("run")) if body.get("run") else latest_finished_run()
+    if r is None:
+        return JSONResponse({"error": "no finished run"}, status_code=404)
+    return clear_for_discharge(r)
 
 
 @app.get("/floorplan")

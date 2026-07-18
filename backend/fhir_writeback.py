@@ -103,6 +103,16 @@ def draft_bundle(run: Run) -> dict:
         + dme_requests(hazards)
         + escalation_tasks(getattr(run, "escalations", []), _patient_ref())
     )
+    if getattr(run, "discharge_state", "") == "cleared":
+        entries.append({
+            "resourceType": "Observation",
+            "id": str(uuid.uuid4()),
+            "status": "final",
+            "code": {"text": "Home-readiness verification complete"},
+            "subject": _patient_ref(),
+            "valueString": "Identified barriers remediated and verified; "
+                           "cleared for discharge per care-team approval.",
+        })
     return {
         "resourceType": "Bundle",
         "type": "collection",
