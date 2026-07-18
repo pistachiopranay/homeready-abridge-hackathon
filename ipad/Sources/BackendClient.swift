@@ -67,8 +67,15 @@ final class BackendClient {
         }.resume()
     }
 
-    func fetchChart(completion: @escaping ([String: Any]) -> Void) {
-        getJSON("patient/chart", completion: completion)
+    func fetchChart(patient: String = "monica",
+                    completion: @escaping ([String: Any]) -> Void) {
+        getJSON("patient/chart?patient=\(patient)", completion: completion)
+    }
+
+    func fetchPatients(completion: @escaping ([[String: Any]]) -> Void) {
+        getJSON("patients") { obj in
+            completion(obj["patients"] as? [[String: Any]] ?? [])
+        }
     }
 
     func fetchApprovals(run: String? = nil,

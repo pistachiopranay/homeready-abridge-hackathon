@@ -214,9 +214,15 @@ def demo_status():
 
 
 @app.get("/patient/chart")
-def get_patient_chart():
+def get_patient_chart(patient: str = "monica"):
     from journey import patient_chart
-    return patient_chart()
+    return patient_chart(patient)
+
+
+@app.get("/patients")
+def get_patients():
+    from journey import patients
+    return {"patients": patients()}
 
 
 @app.get("/approvals")

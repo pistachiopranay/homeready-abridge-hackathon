@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var reportURL: String?
     @State private var finishing = false
     @State private var showPastRuns = false
+    @State private var careTeamRun: String?
 
     private func applyHost() {
         let raw = backendHost.contains("://") ? backendHost : "http://\(backendHost)"
@@ -67,8 +68,13 @@ struct ContentView: View {
             case .home:
                 startView
             case .portal:
-                ClinicianPortalView(onHandoff: { stage = .patientMessage },
-                                    onReset: { stage = .home })
+                ClinicianPortalView(
+                    onHandoff: { stage = .patientMessage },
+                    onOpenSample: { runId in
+                        careTeamRun = runId
+                        stage = .careTeam
+                    },
+                    onReset: { stage = .home })
             case .patientMessage:
                 PatientMessageView(
                     onStartLive: { inGuidedFlow = true; startLive() },
@@ -76,7 +82,9 @@ struct ContentView: View {
             case .thanks:
                 ThanksView { stage = .careTeam }
             case .careTeam:
-                CareTeamView { stage = .discharged }
+                CareTeamView(onCleared: { stage = .discharged },
+                             initialRun: careTeamRun,
+                             onBack: { careTeamRun = nil; stage = .portal })
             case .discharged:
                 DischargedView {
                     stage = .portal      // close the loop back in the chart

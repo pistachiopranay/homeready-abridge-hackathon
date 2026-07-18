@@ -31,7 +31,67 @@ PLAN_ITEMS = [
 ]
 
 
-def patient_chart() -> dict:
+# The pre-processed sample: a completed walkthrough with pending approvals so
+# the full care-team flow can be demoed instantly, no live wait
+SAMPLE_RUN_ID = "113216-766172"
+SAMPLE_PATIENT_PREFIX = "1be66dc9"   # Latoyia Wilkinson, 82F — SNF after hosp.
+
+
+def _record_for(prefix: str) -> dict:
+    from config import DATASET
+    with open(DATASET) as f:
+        for line in f:
+            rec = json.loads(line)
+            if rec["id"].startswith(prefix):
+                return rec
+    raise KeyError(prefix)
+
+
+def _relay_status(run: Run | None) -> dict | None:
+    if run is None:
+        return None
+    hazards = [f for f in run.findings if f.get("hazard")]
+    return {
+        "run_id": run.id,
+        "discharge_state": run.discharge_state,
+        "n_findings": len(hazards),
+        "n_critical": sum(1 for f in hazards
+                          if f.get("severity") == "critical"),
+        "n_blocked": sum(1 for o in run.obligations
+                         if o.get("status") == "blocked"),
+        "has_floorplan": bool(run.floorplans),
+    }
+
+
+def patients() -> list[dict]:
+    return [
+        {"id": "monica", "name": "Hilpert, Monica",
+         "detail": "76F · SNF rehab · DC Friday", "live": True},
+        {"id": "sample", "name": "Wilkinson, Latoyia",
+         "detail": "82F · SNF after hospitalization · processed",
+         "live": False},
+        {"id": "other", "name": "Okafor, James",
+         "detail": "61M · post-op wound check", "live": False,
+         "disabled": True},
+    ]
+
+
+def patient_chart(which: str = "monica") -> dict:
+    if which == "sample":
+        rec = _record_for(SAMPLE_PATIENT_PREFIX)
+        nm = rec["patient_context"]["patient"]["name"][0]
+        chart = {
+            "name": f"{nm['given'][0]} {nm['family']}",
+            "age": 82, "sex": "F",
+            "visit_title": rec["metadata"]["visit_title"],
+            "note": rec["note"],
+            "plan_items": [],
+            "handoff_message": "",
+            "sample": True,
+            "relay_status": _relay_status(load_run(SAMPLE_RUN_ID)),
+        }
+        return chart
+
     rec = record()
     chart = {
         "name": "Monica Hilpert",
@@ -43,21 +103,18 @@ def patient_chart() -> dict:
         "plan_items": PLAN_ITEMS,
         "handoff_message": HANDOFF_MESSAGE,
     }
-    # The chart round-trip: once a walkthrough exists, its outcome is part of
-    # the longitudinal record the clinician sees
-    run = latest_finished_run()
-    if run is not None:
-        hazards = [f for f in run.findings if f.get("hazard")]
-        chart["relay_status"] = {
-            "run_id": run.id,
-            "discharge_state": run.discharge_state,
-            "n_findings": len(hazards),
-            "n_critical": sum(1 for f in hazards
-                              if f.get("severity") == "critical"),
-            "n_blocked": sum(1 for o in run.obligations
-                             if o.get("status") == "blocked"),
-            "has_floorplan": bool(run.floorplans),
-        }
+    # Monica's card reflects HER latest walkthrough. While a live run hasn't
+    # saved yet, surface a processing state instead of stale sample data.
+    import state as state_mod
+    live = state_mod.current()
+    finished_ids = {d.name for d in RUNS_DIR.iterdir() if (d / "run.json").exists()}
+    if live.frames and live.id not in finished_ids:
+        chart["relay_status"] = {"processing": True, "run_id": live.id,
+                                 "n_findings": len(live.findings)}
+    else:
+        candidates = sorted(fid for fid in finished_ids if fid != SAMPLE_RUN_ID)
+        if candidates:
+            chart["relay_status"] = _relay_status(load_run(candidates[-1]))
     return chart
 
 

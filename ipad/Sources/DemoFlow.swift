@@ -108,9 +108,12 @@ struct NoteMarkdownView: View {
 
 struct ClinicianPortalView: View {
     let onHandoff: () -> Void
+    var onOpenSample: ((String) -> Void)? = nil
     var onReset: (() -> Void)? = nil
     @State private var chart: [String: Any] = [:]
     @State private var handedOff = false
+    @State private var patients: [[String: Any]] = []
+    @State private var selectedPatient = "monica"
 
     var body: some View {
         HStack(spacing: 0) {
@@ -121,11 +124,17 @@ struct ClinicianPortalView: View {
         .background(Color(.systemGroupedBackground))
         .tint(.teal)
         .onAppear {
-            BackendClient.shared.fetchChart { chart = $0 }
+            loadChart()
+            BackendClient.shared.fetchPatients { patients = $0 }
         }
     }
 
+    private func loadChart() {
+        BackendClient.shared.fetchChart(patient: selectedPatient) { chart = $0 }
+    }
+
     private var relayStatus: [String: Any]? { chart["relay_status"] as? [String: Any] }
+    private var isSample: Bool { chart["sample"] as? Bool == true }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -133,12 +142,23 @@ struct ClinicianPortalView: View {
                 .font(.headline)
                 .padding()
             Divider()
-            patientRow(name: "Hilpert, Monica", detail: "76F · SNF rehab · DC Friday",
-                       active: true)
-            patientRow(name: "Bergstrom, Elsa", detail: "82F · CHF follow-up",
-                       active: false)
-            patientRow(name: "Okafor, James", detail: "61M · post-op wound check",
-                       active: false)
+            ForEach(Array(patients.enumerated()), id: \.offset) { _, p in
+                let pid = p["id"] as? String ?? ""
+                let disabled = p["disabled"] as? Bool == true
+                Button {
+                    guard !disabled else { return }
+                    selectedPatient = pid
+                    chart = [:]
+                    loadChart()
+                } label: {
+                    patientRow(name: p["name"] as? String ?? "",
+                               detail: p["detail"] as? String ?? "",
+                               active: pid == selectedPatient)
+                }
+                .buttonStyle(.plain)
+                .disabled(disabled)
+                .opacity(disabled ? 0.5 : 1)
+            }
             Spacer()
             Text("Ambient notes by Abridge\nFollow-through by Relay")
                 .font(.caption2)
@@ -179,7 +199,8 @@ struct ClinicianPortalView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Monica Hilpert, 76F")
+                    Text("\(chart["name"] as? String ?? "…"), "
+                         + "\(chart["age"] as? Int ?? 0)\(chart["sex"] as? String ?? "")")
                         .font(.title2.bold())
                     Text(chart["visit_title"] as? String ?? "")
                         .foregroundStyle(.secondary)
@@ -190,11 +211,25 @@ struct ClinicianPortalView: View {
 
                 if relayStatus != nil { relayCard }
 
+                if isSample, let runId = relayStatus?["run_id"] as? String {
+                    Button {
+                        onOpenSample?(runId)
+                    } label: {
+                        Label("Open care-team review & report",
+                              systemImage: "tray.full.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.teal)
+                }
+
                 NoteMarkdownView(markdown: chart["note"] as? String ?? "Loading note…")
                     .padding(18)
                     .background(.background, in: RoundedRectangle(cornerRadius: 12))
 
-                planCard
+                if !isSample { planCard }
             }
             .padding(24)
             .frame(maxWidth: 720)
@@ -202,7 +237,36 @@ struct ClinicianPortalView: View {
         .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
     private var relayCard: some View {
+        if relayStatus?["processing"] as? Bool == true {
+            processingCard
+        } else {
+            statusCard
+        }
+    }
+
+    private var processingCard: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Relay · walk-through in progress")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                Text("Report is being generated — findings land as they're graded. "
+                     + "Run \(relayStatus?["run_id"] as? String ?? "")")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .strokeBorder(.orange.opacity(0.4)))
+    }
+
+    private var statusCard: some View {
         let rs = relayStatus ?? [:]
         let cleared = (rs["discharge_state"] as? String ?? "in_review") == "cleared"
         let blocked = rs["n_blocked"] as? Int ?? 0
@@ -419,6 +483,8 @@ struct Approval: Identifiable {
 
 struct CareTeamView: View {
     let onCleared: () -> Void
+    var initialRun: String? = nil
+    var onBack: (() -> Void)? = nil
     @State private var approvals: [Approval] = []
     @State private var runId: String?
     @State private var selectedRun: String?     // nil = latest finished
@@ -432,6 +498,14 @@ struct CareTeamView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
+                    if let onBack {
+                        Button {
+                            onBack()
+                        } label: {
+                            Label("Chart", systemImage: "chevron.left")
+                        }
+                        .buttonStyle(.bordered)
+                    }
                     Label("Care-team review", systemImage: "tray.full.fill")
                         .font(.title2.bold())
                     Spacer()
@@ -536,6 +610,9 @@ struct CareTeamView: View {
         .background(Color(.systemGroupedBackground))
         .tint(.teal)
         .onAppear {
+            if selectedRun == nil, let initialRun {
+                selectedRun = initialRun
+            }
             refresh()
             BackendClient.shared.fetchRuns { items in
                 sampleRuns = items.compactMap { $0["run_id"] as? String }
