@@ -196,8 +196,9 @@ walkthrough evidence.</p>
 <h2>3 · Graded findings</h2>
 {cards or '<p class="meta">No findings yet — walkthrough in progress.</p>'}
 
-<h2>4 · Measurements (LiDAR)</h2>
+<h2>4 · Measurements &amp; floor plans (LiDAR)</h2>
 {measures or '<p class="meta">No room scans captured.</p>'}
+{f'<img src="/floorplan?run={run.id}" style="max-width:100%;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:8px">' if getattr(run, "floorplans", []) else ''}
 
 <h2>5 · Patient-reported context (voice walkthrough)</h2>
 {confirms}

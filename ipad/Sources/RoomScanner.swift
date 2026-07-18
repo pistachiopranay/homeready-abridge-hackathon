@@ -64,14 +64,33 @@ final class RoomScanner: NSObject, ObservableObject, RoomCaptureViewDelegate {
     func captureView(shouldPresent roomDataForProcessing: CapturedRoomData,
                      error: Error?) -> Bool { true }
 
+    private func surfaceDict(_ s: CapturedRoom.Surface) -> [String: Any] {
+        // Top-down projection: world position (x,z) + the wall's local X axis
+        // direction in the XZ plane + its length. Enough to draw a floor plan.
+        let c0 = s.transform.columns.0
+        let pos = s.transform.columns.3
+        return ["x": Double(pos.x), "z": Double(pos.z),
+                "dx": Double(c0.x), "dz": Double(c0.z),
+                "len_m": Double(s.dimensions.x), "width_m": Double(s.dimensions.x)]
+    }
+
+    private func objectDict(_ o: CapturedRoom.Object) -> [String: Any] {
+        let c0 = o.transform.columns.0
+        let pos = o.transform.columns.3
+        return ["x": Double(pos.x), "z": Double(pos.z),
+                "dx": Double(c0.x), "dz": Double(c0.z),
+                "len_m": Double(o.dimensions.x), "depth_m": Double(o.dimensions.z),
+                "category": String(describing: o.category)]
+    }
+
     func captureView(didPresent processedResult: CapturedRoom, error: Error?) {
         guard error == nil else {
             DispatchQueue.main.async { self.lastStatus = "Scan failed — camera only" }
             return
         }
         let inch = { (m: Float) in Double(m) * 39.3701 }
-        let doors = processedResult.doors.map { ["width_m": Double($0.dimensions.x)] }
-        let openings = processedResult.openings.map { ["width_m": Double($0.dimensions.x)] }
+        let doors = processedResult.doors.map(surfaceDict)
+        let openings = processedResult.openings.map(surfaceDict)
         let area = processedResult.floors
             .map { Double($0.dimensions.x * $0.dimensions.y) }.reduce(0, +)
 
@@ -79,6 +98,13 @@ final class RoomScanner: NSObject, ObservableObject, RoomCaptureViewDelegate {
         if !doors.isEmpty { payload["doors"] = doors }
         if !openings.isEmpty { payload["openings"] = openings }
         if area > 0 { payload["floor_area_m2"] = area }
+        payload["geometry"] = [
+            "walls": processedResult.walls.map(surfaceDict),
+            "doors": doors,
+            "openings": openings,
+            "windows": processedResult.windows.map(surfaceDict),
+            "objects": processedResult.objects.map(objectDict),
+        ]
         BackendClient.shared.send(roomPlan: payload)
 
         let widths = (processedResult.doors + processedResult.openings)

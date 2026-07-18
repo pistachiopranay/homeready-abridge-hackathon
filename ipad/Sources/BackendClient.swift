@@ -57,6 +57,16 @@ final class BackendClient {
         post("confirmations/\(id)/resolve", json: ["answer": answer, "by": "tap"])
     }
 
+    func fetchRuns(completion: @escaping ([[String: Any]]) -> Void) {
+        let url = baseURL.appendingPathComponent("runs")
+        session.dataTask(with: url) { data, _, _ in
+            let items = data
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                .flatMap { $0["runs"] as? [[String: Any]] } ?? []
+            DispatchQueue.main.async { completion(items) }
+        }.resume()
+    }
+
     func startDemo() { post("demo/start", json: [:]) }
     func stopDemo() { post("demo/stop", json: [:]) }
     var demoVideoURL: URL { baseURL.appendingPathComponent("demo/video") }

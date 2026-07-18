@@ -26,6 +26,7 @@ class Run:
         self.confirmations: list[dict] = []  # {id, question, status, source, resolved_by}
         self.obligations: list[dict] = []    # scored care-plan obligations (at finish)
         self.escalations: list[dict] = []    # routed exceptions (at finish)
+        self.floorplans: list[dict] = []     # captured room geometry per scan
         self.current_room: str = "unknown"
 
     def add_frame(self, jpeg: bytes, room: str | None) -> dict:
@@ -107,6 +108,7 @@ class Run:
                 "confirmations": self.confirmations,
                 "obligations": self.obligations,
                 "escalations": self.escalations,
+                "floorplans": self.floorplans,
                 "events": list(self.events),
                 "frames": [{k: v for k, v in f.items()} for f in self.frames],
             }, indent=2))
@@ -150,5 +152,6 @@ def load_run(run_id: str) -> Run | None:
     run.confirmations = data.get("confirmations", [])
     run.obligations = data.get("obligations", [])
     run.escalations = data.get("escalations", [])
+    run.floorplans = data.get("floorplans", [])
     run.current_room = "unknown"
     return run

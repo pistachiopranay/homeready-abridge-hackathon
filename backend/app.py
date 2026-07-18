@@ -66,6 +66,10 @@ async def roomplan(req: Request):
     run = state.current()
     measurements = ingest_roomplan(body)
     room = body.get("room", "room")
+    geometry = body.get("geometry")
+    if geometry:
+        with run.lock:
+            run.floorplans.append({"room": room, **geometry})
     for m in measurements:
         run.add_measurement(m)
         if m.get("kind") not in ("door", "opening"):
@@ -199,6 +203,47 @@ def demo_status():
     from demo import player
     return {"running": player.running, "frame": player.frame_i,
             "total": player.total}
+
+
+@app.get("/floorplan")
+def floorplan_png(run: str | None = None):
+    from fastapi.responses import Response
+    from floorplan import render_run
+    r = state.load_run(run) if run else state.current()
+    if r is None:
+        return JSONResponse({"error": "run not found"}, status_code=404)
+    return Response(render_run(getattr(r, "floorplans", [])), media_type="image/png")
+
+
+@app.get("/runs")
+def runs_json():
+    """Machine-readable run list for the iPad's past-walkthrough browser."""
+    import json as _json
+    from config import RUNS_DIR
+    out = []
+    for d in sorted(RUNS_DIR.iterdir(), reverse=True):
+        rj = d / "run.json"
+        if not rj.exists():
+            continue
+        try:
+            data = _json.loads(rj.read_text())
+        except Exception:
+            continue
+        findings = data.get("findings", [])
+        out.append({
+            "run_id": d.name,
+            "n_frames": len(data.get("frames", [])),
+            "n_findings": len(findings),
+            "n_critical": sum(1 for f in findings
+                              if f.get("severity") == "critical"),
+            "n_escalations": len(data.get("escalations", [])),
+            "n_blocked": sum(1 for o in data.get("obligations", [])
+                             if o.get("status") == "blocked"),
+            "has_floorplan": bool(data.get("floorplans")),
+            "rooms": sorted({fp.get("room", "?")
+                             for fp in data.get("floorplans", [])}),
+        })
+    return {"runs": out}
 
 
 @app.get("/", response_class=HTMLResponse)

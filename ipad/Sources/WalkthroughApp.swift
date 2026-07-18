@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var room = "entry"
     @State private var reportURL: String?
     @State private var finishing = false
+    @State private var showPastRuns = false
 
     private func applyHost() {
         let raw = backendHost.contains("://") ? backendHost : "http://\(backendHost)"
@@ -98,6 +99,18 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             .tint(.secondary)
+
+            Button {
+                applyHost()
+                showPastRuns = true
+            } label: {
+                Label("Past walkthroughs & floor plans",
+                      systemImage: "square.split.bottomrightquarter")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .tint(.secondary)
+            .sheet(isPresented: $showPastRuns) { PastRunsView() }
 
             if let reportURL {
                 VStack(spacing: 6) {
