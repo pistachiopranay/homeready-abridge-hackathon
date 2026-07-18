@@ -28,21 +28,35 @@ struct ContentView: View {
     }
 
     private var startView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             Spacer()
-            Text("Home Safety Walkthrough")
-                .font(.largeTitle.bold())
-            Text("Monica Hilpert · going home Friday")
+
+            Image(systemName: "house.and.flag.fill")
+                .font(.system(size: 54))
+                .foregroundStyle(.teal)
+            Text("Relay")
+                .font(.system(size: 46, weight: .bold, design: .rounded))
+            Text("Care doesn't end at the encounter.")
+                .font(.title3)
                 .foregroundStyle(.secondary)
 
-            TextField("Mac backend host:port", text: $backendHost)
-                .textFieldStyle(.roundedBorder)
-                .autocapitalization(.none)
-                .disableAutocorrection(true)
-                .frame(maxWidth: 340)
+            VStack(spacing: 4) {
+                Text("Today's walkthrough")
+                    .font(.caption.smallCaps())
+                    .foregroundStyle(.secondary)
+                Text("Monica's apartment · she comes home Friday")
+                    .font(.headline)
+                Text("Walk room to room and just talk to Steady —\nit will guide you the whole way.")
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(18)
+            .background(.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
 
             Button {
-                if let url = URL(string: "http://\(backendHost)") {
+                let raw = backendHost.contains("://") ? backendHost : "http://\(backendHost)"
+                if let url = URL(string: raw) {
                     BackendClient.shared.baseURL = url
                 }
                 BackendClient.shared.startWalkthrough()
@@ -52,16 +66,21 @@ struct ContentView: View {
                 scanner.startRoom(named: room)
             } label: {
                 Label("Start walkthrough", systemImage: "figure.walk")
-                    .font(.title2.bold())
-                    .padding(.horizontal, 32).padding(.vertical, 14)
+                    .font(.title.bold())
+                    .padding(.horizontal, 44).padding(.vertical, 18)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.teal)
 
             if let reportURL {
                 VStack(spacing: 6) {
-                    Text("Report ready on the care-team side:")
-                    Text("http://\(backendHost)\(reportURL)")
+                    Label("Walkthrough complete — report sent to Monica's care team",
+                          systemImage: "checkmark.seal.fill")
+                        .font(.headline)
+                        .foregroundStyle(.green)
+                    Text("\(backendHost)\(reportURL)")
                         .font(.footnote.monospaced())
+                        .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
                 .padding()
@@ -70,7 +89,17 @@ struct ContentView: View {
             if !voice.connectionError.isEmpty {
                 Text(voice.connectionError).foregroundStyle(.red).font(.footnote)
             }
+
             Spacer()
+
+            // Setup detail, out of the caregiver's way
+            TextField("backend host (ip:port or full URL)", text: $backendHost)
+                .textFieldStyle(.roundedBorder)
+                .font(.footnote.monospaced())
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+                .frame(maxWidth: 300)
+                .opacity(0.5)
         }
         .padding()
     }
