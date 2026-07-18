@@ -79,6 +79,12 @@ struct PatientChrome<Content: View>: View {
 /// `**Section:** text` paragraphs, `### ` headings, `- ` bullets.
 struct NoteMarkdownView: View {
     let markdown: String
+    var highlights: [String] = []
+
+    private func isHighlighted(_ text: String) -> Bool {
+        let t = text.lowercased()
+        return highlights.contains { t.contains($0.lowercased()) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -125,11 +131,31 @@ struct NoteMarkdownView: View {
                 .font(.headline)
                 .padding(.top, 8)
         case .bullet(let text):
-            HStack(alignment: .top, spacing: 8) {
-                Text("•").font(.callout)
-                Text(inline(text)).font(.callout)
+            if isHighlighted(text) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•").font(.callout)
+                        Text(inline(text)).font(.callout)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RelayTheme.brand.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(RelayTheme.brand.opacity(0.35)))
+                    Label("Why HomeReady was engaged — this can't be verified from the chart",
+                          systemImage: "arrow.turn.down.right")
+                        .font(.caption2.bold())
+                        .foregroundStyle(RelayTheme.brand)
+                        .padding(.leading, 4)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 8) {
+                    Text("•").font(.callout)
+                    Text(inline(text)).font(.callout)
+                }
+                .padding(.leading, 8)
             }
-            .padding(.leading, 8)
         case .paragraph(let text):
             Text(inline(text))
                 .font(.callout)
@@ -200,6 +226,7 @@ struct ClinicianPortalView: View {
                 .padding()
             if let onReset {
                 Button {
+                    BackendClient.shared.resetDemo()
                     onReset()
                 } label: {
                     Label("Reset demo", systemImage: "arrow.counterclockwise")
@@ -259,7 +286,8 @@ struct ClinicianPortalView: View {
                     .tint(RelayTheme.brand)
                 }
 
-                NoteMarkdownView(markdown: chart["note"] as? String ?? "Loading note…")
+                NoteMarkdownView(markdown: chart["note"] as? String ?? "Loading note…",
+                                 highlights: isSample ? [] : ["pre-discharge assessment"])
                     .padding(18)
                     .background(.background, in: RoundedRectangle(cornerRadius: 12))
 

@@ -207,6 +207,24 @@ def demo_stop():
     return {"ok": True}
 
 
+@app.post("/demo/reset")
+def demo_reset():
+    """Full demo reset: fresh empty live run (clears Monica's 'processing'
+    card), demo replay stopped, sample run's approvals back to pending."""
+    from demo import player
+    from journey import SAMPLE_RUN_ID
+    player.halt()
+    state.new_run()
+    r = state.load_run(SAMPLE_RUN_ID)
+    if r is not None:
+        with r.lock:
+            for a in r.approvals:
+                a["status"] = "pending"
+            r.discharge_state = "in_review"
+        r.save()
+    return {"ok": True}
+
+
 @app.get("/demo/video")
 def demo_video():
     from fastapi.responses import FileResponse

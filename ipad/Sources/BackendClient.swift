@@ -110,6 +110,7 @@ final class BackendClient {
     }
 
     func startDemo() { post("demo/start", json: [:]) }
+    func resetDemo() { post("demo/reset", json: [:]) }
     func stopDemo() { post("demo/stop", json: [:]) }
     var demoVideoURL: URL { baseURL.appendingPathComponent("demo/video") }
 
