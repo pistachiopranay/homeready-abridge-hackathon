@@ -1,0 +1,34 @@
+name: Walkthrough
+options:
+  bundleIdPrefix: com.aytza
+packages:
+  ElevenLabs:
+    url: https://github.com/elevenlabs/elevenlabs-swift-sdk
+    from: 3.2.2
+targets:
+  Walkthrough:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [Sources]
+    info:
+      path: Sources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSMicrophoneUsageDescription: Voice conversation with the walkthrough guide.
+        NSCameraUsageDescription: Room scanning and hazard detection during the walkthrough.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - package: ElevenLabs
+        product: ElevenLabs
+    settings:
+      base:
+        DEVELOPMENT_TEAM: 7JVJX5GN54
+        PRODUCT_BUNDLE_IDENTIFIER: com.aytza.walkthrough
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "5.9"
