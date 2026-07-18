@@ -1,0 +1,35 @@
+# Secrets — NEVER commit (repo is public)
+.env
+.env.*
+*.pem
+*.p12
+
+# Pre-event spike work — not part of the hackathon build ("new work only" rule)
+spikes-tonight/
+vlog-shotlist.md
+
+# Local working notes (contains venue creds / device ids)
+CLAUDE.md
+
+# macOS
+.DS_Store
+
+# Xcode / Swift
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.ipa
+*.dSYM.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# Scratch
+*.log
