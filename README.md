@@ -99,6 +99,9 @@ xcodegen generate && open Walkthrough.xcodeproj
 ```
 
 Care-team surfaces: `http://<mac>:8000/` (run index), `/report`, `/report/fhir`.
+No backend handy? A fully rendered sample report (real walkthrough, 27 findings,
+photos, floor plan) is committed at [docs/sample-report.html](docs/sample-report.html) —
+download and open it in any browser.
 
 ## Built with
 
