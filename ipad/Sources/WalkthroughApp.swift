@@ -262,13 +262,26 @@ struct ContentView: View {
 
                     HStack {
                         Circle()
-                            .fill(voice.isConnected ? .green : .red)
+                            .fill(voice.isConnected ? (voice.isMuted ? .orange : .green) : .red)
                             .frame(width: 10, height: 10)
-                        Text(voice.isConnected ? "Riley live" : "voice off")
+                        Text(voice.isConnected
+                             ? (voice.isMuted ? "Riley can't hear" : "Riley live")
+                             : "voice off")
                             .font(.footnote)
                     }
                     .padding(8)
                     .background(.ultraThinMaterial, in: Capsule())
+
+                    Button {
+                        voice.toggleMute()
+                    } label: {
+                        Label(voice.isMuted ? "Unmute" : "Mute",
+                              systemImage: voice.isMuted ? "mic.slash.fill" : "mic.fill")
+                            .font(.footnote.bold())
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(voice.isMuted ? .orange : .gray)
+                    .disabled(!voice.isConnected)
 
                     Button(role: .destructive) {
                         endWalkthrough()

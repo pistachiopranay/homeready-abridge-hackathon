@@ -11,6 +11,7 @@ final class VoiceManager: ObservableObject {
     static let agentId = "agent_9201kxsnxjpmfcgr4thxc08k9jpq"
 
     @Published var isConnected = false
+    @Published var isMuted = false
     @Published var lastAgentLine = ""
     @Published var connectionError = ""
 
@@ -37,10 +38,25 @@ final class VoiceManager: ObservableObject {
         }
     }
 
+    /// Stage control: mute the mic so the presenter can talk to the room
+    /// without Riley hearing (Riley stays connected and can still speak).
+    func toggleMute() {
+        let target = !isMuted
+        isMuted = target      // optimistic — UI flips instantly
+        Task {
+            do {
+                try await conversation?.setMicrophoneMuted(target)
+            } catch {
+                isMuted = !target
+            }
+        }
+    }
+
     func stop() async {
         await conversation?.endConversation()
         conversation = nil
         cancellables.removeAll()
         isConnected = false
+        isMuted = false
     }
 }
