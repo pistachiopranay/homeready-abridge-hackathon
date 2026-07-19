@@ -121,6 +121,10 @@ class Run:
 _current: Run | None = None
 _lock = threading.Lock()
 
+# Demo reset cutoff: runs whose HHMMSS id sorts at/below this are hidden from
+# Monica's chart card (sample patient is pinned separately and unaffected)
+chart_cutoff: str = ""
+
 
 def current() -> Run:
     global _current

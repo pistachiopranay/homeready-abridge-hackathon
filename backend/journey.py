@@ -112,7 +112,9 @@ def patient_chart(which: str = "monica") -> dict:
         chart["relay_status"] = {"processing": True, "run_id": live.id,
                                  "n_findings": len(live.findings)}
     else:
-        candidates = sorted(fid for fid in finished_ids if fid != SAMPLE_RUN_ID)
+        candidates = sorted(
+            fid for fid in finished_ids
+            if fid != SAMPLE_RUN_ID and fid > state_mod.chart_cutoff)
         if candidates:
             chart["relay_status"] = _relay_status(load_run(candidates[-1]))
     return chart

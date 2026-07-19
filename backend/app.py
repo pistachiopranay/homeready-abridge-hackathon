@@ -14,6 +14,7 @@ Endpoints:
 import asyncio
 import base64
 import threading
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -215,6 +216,7 @@ def demo_reset():
     from journey import SAMPLE_RUN_ID
     player.halt()
     state.new_run()
+    state.chart_cutoff = time.strftime("%H%M%S")  # hide Monica's older runs
     r = state.load_run(SAMPLE_RUN_ID)
     if r is not None:
         with r.lock:
